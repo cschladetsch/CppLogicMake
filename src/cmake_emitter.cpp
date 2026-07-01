@@ -50,26 +50,39 @@ void emitTarget(std::ostringstream& out, const TargetInfo& t) {
         }
     }
 
-    const char* visibility = asInterface ? " INTERFACE" : "";
-
-    if (!t.dependsAll.empty()) {
-        out << "target_link_libraries(" << t.name << visibility;
-        for (const auto& dep : t.dependsAll) {
-            out << " " << dep;
+    auto emitLinkGroup = [&](const char* scope, const std::vector<std::string>& items) {
+        if (items.empty()) {
+            return;
+        }
+        out << "target_link_libraries(" << t.name << scope;
+        for (const auto& item : items) {
+            out << " " << item;
         }
         out << ")\n";
+    };
+
+    if (asInterface) {
+        std::vector<std::string> interfaceDeps = t.dependsPublic;
+        interfaceDeps.insert(interfaceDeps.end(), t.dependsPrivate.begin(),
+                             t.dependsPrivate.end());
+        interfaceDeps.insert(interfaceDeps.end(), t.links.begin(), t.links.end());
+        emitLinkGroup(" INTERFACE", interfaceDeps);
+    } else {
+        const char* depScope = t.kind == "exe" ? " PRIVATE" : " PUBLIC";
+        emitLinkGroup(depScope, t.dependsPublic);
+        emitLinkGroup(" PRIVATE", t.dependsPrivate);
+        emitLinkGroup(" PRIVATE", t.links);
     }
 
-    if (!t.links.empty()) {
-        out << "target_link_libraries(" << t.name << visibility;
-        for (const auto& lib : t.links) {
-            out << " " << lib;
-        }
-        out << ")\n";
+    if (!asInterface && !t.dependsAll.empty()) {
+        out << "# NOTE: resolved closure for " << t.name
+            << " is tracked in the semantic model, not flattened into CMake.\n";
     }
 
     if (!t.defines.empty()) {
-        out << "target_compile_definitions(" << t.name << visibility;
+        const char* defineScope = asInterface ? " INTERFACE"
+                                 : (t.kind == "exe" ? " PRIVATE" : " PUBLIC");
+        out << "target_compile_definitions(" << t.name << defineScope;
         for (const auto& def : t.defines) {
             out << " " << def;
         }

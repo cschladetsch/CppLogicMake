@@ -91,4 +91,6 @@ through without semantic inflation:
 
 If a build concern changes the dependency graph, visibility, or source set, it
 belongs in the semantic layer. If it changes how CMake emits or drives a native
-build tool, it stays in the backend.
+build tool, it stays in the backend. The emitter should preserve CMake's own
+`PUBLIC`/`PRIVATE`/`INTERFACE` scopes where the semantic model can express them,
+instead of flattening everything into an opaque link list.

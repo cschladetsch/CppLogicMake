@@ -16,6 +16,8 @@ struct TargetInfo {
     std::string kind;                  // lib | exe | interface
     std::vector<std::string> sources;
     std::vector<std::string> includes;
+    std::vector<std::string> dependsPublic;
+    std::vector<std::string> dependsPrivate;
     std::vector<std::string> dependsAll;
     std::vector<std::string> links;
     std::vector<std::string> defines;

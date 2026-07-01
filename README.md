@@ -196,8 +196,9 @@ Running the driver against it produces:
 # --- kai_core ---
 add_library(kai_core examples/kai_workspace/CppKaiCore/src/core.cpp examples/kai_workspace/CppKaiCore/src/registry.cpp)
 target_include_directories(kai_core PUBLIC examples/kai_workspace/CppKaiCore/include/)
-target_link_libraries(kai_core kai_language enet fmt)
-target_link_libraries(kai_core pthread)
+target_link_libraries(kai_core PUBLIC kai_language enet)
+target_link_libraries(kai_core PRIVATE fmt)
+target_link_libraries(kai_core PRIVATE pthread)
 
 # --- enet ---
 # NOTE: 'enet' has no resolved sources; emitted as INTERFACE rather than a real compiled library.

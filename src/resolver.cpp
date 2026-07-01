@@ -59,6 +59,12 @@ std::vector<TargetInfo> Resolver::resolve() const {
     for (const auto& row : engine.query("include(T,I)", {"T", "I"})) {
         ensure(row[0]).includes.push_back(stripQuotes(row[1]));
     }
+    for (const auto& row : engine.query("depends(T,D)", {"T", "D"})) {
+        ensure(row[0]).dependsPublic.push_back(row[1]);
+    }
+    for (const auto& row : engine.query("depends(T,D,private)", {"T", "D"})) {
+        ensure(row[0]).dependsPrivate.push_back(row[1]);
+    }
     for (const auto& row : engine.query("depends_all(T,D)", {"T", "D"})) {
         ensure(row[0]).dependsAll.push_back(row[1]);
     }

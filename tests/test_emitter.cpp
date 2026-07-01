@@ -20,7 +20,9 @@ std::vector<TargetInfo> makeSampleTargets() {
     core.kind = "lib";
     core.sources = {"src/*.cpp"};
     core.includes = {"include/"};
-    core.dependsAll = {"kai_language"};
+    core.dependsPublic = {"kai_language", "enet"};
+    core.dependsPrivate = {"fmt"};
+    core.dependsAll = {"kai_language", "enet", "fmt"};
     core.links = {"pthread"};
     core.defines = {"KAI_DEBUG"};
 
@@ -28,6 +30,7 @@ std::vector<TargetInfo> makeSampleTargets() {
     node.name = "kai_node";
     node.kind = "exe";
     node.sources = {"node/*.cpp"};
+    node.dependsPublic = {"kai_core"};
     node.dependsAll = {"kai_core"};
     node.cyclic = true;
 
@@ -46,27 +49,35 @@ TEST(CMakeEmitter, LibTargetEmitsSources) {
     EXPECT_NE(out.find("add_library(kai_core src/*.cpp)"), std::string::npos);
 }
 
-TEST(CMakeEmitter, DependsAllBecomesLinkLibraries) {
+TEST(CMakeEmitter, PublicAndPrivateDepsArePreserved) {
     const auto out = logicmake::emitCMakeLists(makeSampleTargets());
-    EXPECT_NE(out.find("target_link_libraries(kai_core kai_language)"),
+    EXPECT_NE(out.find("target_link_libraries(kai_core PUBLIC kai_language enet)"),
+              std::string::npos);
+    EXPECT_NE(out.find("target_link_libraries(kai_core PRIVATE fmt)"),
               std::string::npos);
 }
 
 TEST(CMakeEmitter, ResolvedLinksAreEmitted) {
     const auto out = logicmake::emitCMakeLists(makeSampleTargets());
-    EXPECT_NE(out.find("target_link_libraries(kai_core pthread)"),
+    EXPECT_NE(out.find("target_link_libraries(kai_core PRIVATE pthread)"),
               std::string::npos);
 }
 
 TEST(CMakeEmitter, ResolvedDefinesAreEmitted) {
     const auto out = logicmake::emitCMakeLists(makeSampleTargets());
-    EXPECT_NE(out.find("target_compile_definitions(kai_core KAI_DEBUG)"),
+    EXPECT_NE(out.find("target_compile_definitions(kai_core PUBLIC KAI_DEBUG)"),
               std::string::npos);
 }
 
 TEST(CMakeEmitter, ExeTargetUsesAddExecutable) {
     const auto out = logicmake::emitCMakeLists(makeSampleTargets());
     EXPECT_NE(out.find("add_executable(kai_node node/*.cpp)"), std::string::npos);
+}
+
+TEST(CMakeEmitter, ExeDepsStayPrivate) {
+    const auto out = logicmake::emitCMakeLists(makeSampleTargets());
+    EXPECT_NE(out.find("target_link_libraries(kai_node PRIVATE kai_core)"),
+              std::string::npos);
 }
 
 TEST(CMakeEmitter, CyclicTargetGetsWarningComment) {
