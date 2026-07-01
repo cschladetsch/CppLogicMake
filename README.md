@@ -27,6 +27,10 @@ imperative scripting language that predates the target-based model it
 now tries to support. A build description is not a script. It's a
 graph. CppLogicMake treats it as one.
 
+The semantic boundary is documented in
+[docs/semantic-surface.md](docs/semantic-surface.md): declarative
+graph rules on one side, boring CMake emission on the other.
+
 The name is a deliberate callback: C++ started life as "C with
 Classes," a thin, mechanical layer over C, compiled down by Cfront
 rather than reimplemented from scratch. CppLogicMake takes the same
