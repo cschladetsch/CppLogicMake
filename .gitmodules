@@ -1,0 +1,6 @@
+[submodule "Ext/CppProlog"]
+	path = Ext/CppProlog
+	url = https://github.com/cschladetsch/CppProlog.git
+[submodule "Ext/googletest"]
+	path = Ext/googletest
+	url = https://github.com/google/googletest.git

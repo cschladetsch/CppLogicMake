@@ -1,0 +1,103 @@
+# Docker Compose configuration for CppLProlog development and deployment
+version: '3.8'
+
+services:
+  # Production runtime service
+  prolog-runtime:
+    build:
+      context: .
+      target: runtime
+      args:
+        - CMAKE_BUILD_TYPE=Release
+    image: cppprolog:runtime
+    container_name: cppprolog-runtime
+    volumes:
+      - ./examples:/app/user-examples:ro
+      - ./docs:/app/docs:ro
+    ports:
+      - "8080:8080"  # For future web interface
+    restart: unless-stopped
+    user: prolog
+    working_dir: /app
+
+  # Development environment service
+  prolog-dev:
+    build:
+      context: .
+      target: development
+      args:
+        - CMAKE_BUILD_TYPE=Debug
+    image: cppprolog:development
+    container_name: cppprolog-dev
+    volumes:
+      - .:/workspace
+      - prolog-build-cache:/workspace/build
+      - prolog-build-debug-cache:/workspace/build-debug
+    ports:
+      - "2222:22"    # SSH access
+      - "8081:8080"  # Development server
+    environment:
+      - CC=clang-15
+      - CXX=clang++-15
+      - CMAKE_BUILD_TYPE=Debug
+      - TERM=xterm-256color
+    working_dir: /workspace
+    tty: true
+    stdin_open: true
+    command: /bin/bash
+
+  # Benchmarking service
+  prolog-benchmark:
+    build:
+      context: .
+      target: benchmark
+    image: cppprolog:benchmark
+    container_name: cppprolog-benchmark
+    volumes:
+      - ./benchmark-results:/app/benchmark-results
+    environment:
+      - BENCHMARK_FORMAT=json
+      - BENCHMARK_OUT=/app/benchmark-results/results.json
+    profiles:
+      - benchmark  # Only start with: docker-compose --profile benchmark up
+
+  # Testing service for CI/CD
+  prolog-test:
+    build:
+      context: .
+      target: builder
+    image: cppprolog:test
+    container_name: cppprolog-test
+    volumes:
+      - ./test-results:/build/test-results
+    command: >
+      bash -c "
+        cd build &&
+        ./bin/prolog_tests --gtest_output=xml:/build/test-results/test_results.xml &&
+        ./bin/prolog_benchmarks --benchmark_format=json --benchmark_out=/build/test-results/benchmark_results.json
+      "
+    profiles:
+      - test
+
+  # Multi-arch build service (for ARM64/AMD64)
+  prolog-multiarch:
+    build:
+      context: .
+      dockerfile: Dockerfile.multiarch
+      platforms:
+        - linux/amd64
+        - linux/arm64
+    image: cppprolog:multiarch
+    profiles:
+      - multiarch
+
+volumes:
+  prolog-build-cache:
+    driver: local
+  prolog-build-debug-cache:
+    driver: local
+
+networks:
+  default:
+    name: cppprolog-network
+    driver: bridge

@@ -1,0 +1,403 @@
+% Docker Generator Adapter for Rust Projects
+% Extends the existing docker_generator.pl with Rust-specific templates
+
+% Import the existing docker generator rules
+:- ensure_loaded('../examples/docker_generator.pl').
+
+% ============================================================================
+% Rust-Specific Docker Templates
+% ============================================================================
+
+% Rust project build strategy
+rust_build_strategy(rust_hello_world, Strategy) :-
+    Strategy = [
+        from('rust:1.75-slim', builder),
+        '# Install system dependencies',
+        run('apt-get update && apt-get install -y build-essential pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*'),
+        workdir('/usr/src/app'),
+        '# Copy dependency files first for better caching',
+        copy('Cargo.toml', 'Cargo.toml'),
+        copy('Cargo.lock', 'Cargo.lock'),
+        '# Create dummy main.rs to build dependencies',
+        run('mkdir src && echo "fn main() {}" > src/main.rs'),
+        '# Build dependencies (cached layer)',
+        run('cargo build --release'),
+        '# Remove dummy source',
+        run('rm -rf src'),
+        '# Copy actual source code',
+        copy('src', 'src'),
+        '# Build the application',
+        run('cargo build --release'),
+        '# Runtime stage',
+        from('debian:bookworm-slim', runtime),
+        run('apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*'),
+        '# Create non-root user',
+        run('groupadd -r rustuser && useradd -r -g rustuser rustuser'),
+        workdir('/app'),
+        '# Copy binary from builder stage',
+        copy('--from=builder /usr/src/app/target/release/hello_world_app', './hello_world_app'),
+        '# Set ownership and permissions',
+        run('chown rustuser:rustuser /app/hello_world_app && chmod +x /app/hello_world_app'),
+        user('rustuser'),
+        cmd('./hello_world_app')
+    ].
+
+% Rust development environment strategy
+rust_development_strategy(rust_hello_world, Strategy) :-
+    Strategy = [
+        from('rust:1.75'),
+        '# Install development tools',
+        run('rustup component add clippy rustfmt'),
+        run('cargo install cargo-audit cargo-outdated'),
+        '# Install system utilities',
+        run('apt-get update && apt-get install -y git vim curl wget htop && rm -rf /var/lib/apt/lists/*'),
+        workdir('/workspace'),
+        '# Copy project files',
+        copy('.', '.'),
+        '# Install dependencies',
+        run('cargo fetch'),
+        '# Set environment for development',
+        env('RUST_BACKTRACE', '1'),
+        env('RUST_LOG', 'debug'),
+        '# Default to bash for interactive development',
+        cmd('/bin/bash')
+    ].
+
+% Rust CI/CD optimized strategy
+rust_ci_strategy(rust_hello_world, Strategy) :-
+    Strategy = [
+        from('rust:1.75'),
+        '# Install CI tools',
+        run('rustup component add clippy rustfmt'),
+        run('cargo install cargo-audit cargo-tarpaulin'),
+        workdir('/app'),
+        copy('.', '.'),
+        '# Run comprehensive checks',
+        run('cargo fmt -- --check'),
+        run('cargo clippy -- -D warnings'),
+        run('cargo audit'),
+        run('cargo test'),
+        '# Generate coverage report',
+        run('cargo tarpaulin --out xml'),
+        '# Build optimized binary',
+        run('cargo build --release'),
+        '# Run the application as a test',
+        run('echo "test" | ./target/release/hello_world_app')
+    ].
+
+% Multi-architecture build strategy
+rust_multiarch_strategy(rust_hello_world, Strategy) :-
+    Strategy = [
+        '# Multi-stage build for multiple architectures',
+        from('--platform=${BUILDPLATFORM} rust:1.75', builder),
+        run('apt-get update && apt-get install -y build-essential && rm -rf /var/lib/apt/lists/*'),
+        workdir('/usr/src/app'),
+        copy('Cargo.toml', 'Cargo.toml'),
+        copy('Cargo.lock', 'Cargo.lock'),
+        copy('src', 'src'),
+        '# Configure cross-compilation',
+        run('rustup target add x86_64-unknown-linux-musl aarch64-unknown-linux-musl'),
+        '# Build for target architecture',
+        run('cargo build --release --target=${TARGETARCH}-unknown-linux-musl'),
+        '# Runtime stage',
+        from('alpine:3.18', runtime),
+        run('apk --no-cache add ca-certificates'),
+        workdir('/app'),
+        copy('--from=builder /usr/src/app/target/${TARGETARCH}-unknown-linux-musl/release/hello_world_app', './app'),
+        user('1000:1000'),
+        cmd('./app')
+    ].
+
+% ============================================================================
+% Enhanced Rust Dockerfile Generation
+% ============================================================================
+
+% Generate Rust-optimized Dockerfile
+generate_rust_dockerfile(ProjectName, Strategy) :-
+    write('# Rust Dockerfile for '), write(ProjectName), nl,
+    write('# Generated by Prolog-based Docker Generator'), nl,
+    write('# Strategy: '), write(Strategy), nl,
+    get_time(Time), 
+    format_time(atom(TimeStr), '%Y-%m-%d %H:%M:%S', Time), 
+    write('# Generated on: '), write(TimeStr), nl,
+    nl,
+    rust_build_strategy(ProjectName, Instructions),
+    generate_instructions(Instructions).
+
+% Generate development Dockerfile
+generate_rust_dev_dockerfile(ProjectName) :-
+    write('# Rust Development Dockerfile for '), write(ProjectName), nl,
+    write('# Includes development tools and utilities'), nl,
+    write('# Generated by Prolog-based Docker Generator'), nl,
+    nl,
+    rust_development_strategy(ProjectName, Instructions),
+    generate_instructions(Instructions).
+
+% Generate CI/CD optimized Dockerfile
+generate_rust_ci_dockerfile(ProjectName) :-
+    write('# Rust CI/CD Dockerfile for '), write(ProjectName), nl,
+    write('# Optimized for automated testing and validation'), nl,
+    write('# Generated by Prolog-based Docker Generator'), nl,
+    nl,
+    rust_ci_strategy(ProjectName, Instructions),
+    generate_instructions(Instructions).
+
+% Generate multi-architecture Dockerfile
+generate_rust_multiarch_dockerfile(ProjectName) :-
+    write('# Multi-Architecture Rust Dockerfile for '), write(ProjectName), nl,
+    write('# Supports x86_64 and ARM64 architectures'), nl,
+    write('# Build with: docker buildx build --platform linux/amd64,linux/arm64 .'), nl,
+    write('# Generated by Prolog-based Docker Generator'), nl,
+    nl,
+    rust_multiarch_strategy(ProjectName, Instructions),
+    generate_instructions(Instructions).
+
+% ============================================================================
+% Docker Compose Generation
+% ============================================================================
+
+% Generate docker-compose.yml for Rust project
+generate_docker_compose(ProjectName) :-
+    write('# Docker Compose file for '), write(ProjectName), nl,
+    write('# Generated by Prolog-based Docker Generator'), nl,
+    write('version: "3.8"'), nl,
+    nl,
+    write('services:'), nl,
+    write('  app:'), nl,
+    write('    build:'), nl,
+    write('      context: .'), nl,
+    write('      dockerfile: Dockerfile'), nl,
+    write('    container_name: '), 
+    atom_chars(ProjectName, Chars),
+    replace_spaces_with_dashes(Chars, DashChars),
+    atom_chars(ContainerName, DashChars),
+    write(ContainerName), nl,
+    write('    restart: unless-stopped'), nl,
+    write('    environment:'), nl,
+    write('      - RUST_LOG=info'), nl,
+    write('      - RUST_BACKTRACE=1'), nl,
+    write('    # ports:'), nl,
+    write('    #   - "8080:8080"  # Uncomment if app serves HTTP'), nl,
+    write('    # volumes:'), nl,
+    write('    #   - ./config:/app/config:ro  # Mount config files'), nl,
+    write('    #   - app_data:/app/data       # Persistent data volume'), nl,
+    write('    networks:'), nl,
+    write('      - app_network'), nl,
+    write('    healthcheck:'), nl,
+    write('      test: ["CMD", "./hello_world_app", "--version"]'), nl,
+    write('      interval: 30s'), nl,
+    write('      timeout: 10s'), nl,
+    write('      retries: 3'), nl,
+    nl,
+    write('  # Uncomment for additional services (database, cache, etc.)'), nl,
+    write('  # redis:'), nl,
+    write('  #   image: redis:7-alpine'), nl,
+    write('  #   restart: unless-stopped'), nl,
+    write('  #   networks:'), nl,
+    write('  #     - app_network'), nl,
+    nl,
+    write('networks:'), nl,
+    write('  app_network:'), nl,
+    write('    driver: bridge'), nl,
+    nl,
+    write('# volumes:'), nl,
+    write('#   app_data:'), nl,
+    write('#     driver: local'), nl.
+
+% Generate .dockerignore file
+generate_dockerignore() :-
+    write('# Dockerignore for Rust projects'), nl,
+    write('# Generated by Prolog-based Docker Generator'), nl,
+    nl,
+    write('# Rust build artifacts'), nl,
+    write('target/'), nl,
+    write('Cargo.lock'), nl,
+    nl,
+    write('# IDE and editor files'), nl,
+    write('.vscode/'), nl,
+    write('.idea/'), nl,
+    write('*.swp'), nl,
+    write('*.swo'), nl,
+    write('*~'), nl,
+    nl,
+    write('# OS generated files'), nl,
+    write('.DS_Store'), nl,
+    write('.DS_Store?'), nl,
+    write('._*'), nl,
+    write('.Spotlight-V100'), nl,
+    write('.Trashes'), nl,
+    write('ehthumbs.db'), nl,
+    write('Thumbs.db'), nl,
+    nl,
+    write('# Version control'), nl,
+    write('.git/'), nl,
+    write('.gitignore'), nl,
+    write('.gitattributes'), nl,
+    nl,
+    write('# Documentation'), nl,
+    write('docs/'), nl,
+    write('*.md'), nl,
+    nl,
+    write('# Test files'), nl,
+    write('tests/fixtures/'), nl,
+    write('coverage/'), nl,
+    nl,
+    write('# Temporary files'), nl,
+    write('*.tmp'), nl,
+    write('*.log'), nl,
+    write('.env.local'), nl,
+    write('.env.*.local'), nl.
+
+% ============================================================================
+% Docker Best Practices Rules
+% ============================================================================
+
+% Rust-specific Docker optimizations
+rust_docker_optimizations(Optimizations) :-
+    Optimizations = [
+        '# Use specific Rust version for reproducible builds',
+        '# Multi-stage builds reduce final image size',
+        '# Cache dependencies separately from source code',
+        '# Use slim/alpine base images for smaller footprint',
+        '# Run as non-root user for security',
+        '# Use .dockerignore to exclude unnecessary files',
+        '# Set appropriate resource limits in production',
+        '# Enable health checks for container orchestration',
+        '# Use build-time variables for configuration',
+        '# Clean up package manager caches to reduce size'
+    ].
+
+% Security best practices for Rust containers
+rust_security_practices(Practices) :-
+    Practices = [
+        '# Create dedicated non-root user',
+        '# Use official Rust base images',
+        '# Keep base images updated',
+        '# Minimize installed packages',
+        '# Set proper file permissions',
+        '# Use secrets management for sensitive data',
+        '# Enable security scanning in CI/CD',
+        '# Use distroless images where possible',
+        '# Implement proper logging',
+        '# Regular security audits with cargo-audit'
+    ].
+
+% Performance optimization rules
+rust_performance_optimizations(Optimizations) :-
+    Optimizations = [
+        '# Use release builds for production',
+        '# Enable link-time optimization (LTO)',
+        '# Consider using musl for static linking',
+        '# Profile-guided optimization when applicable',
+        '# Optimize for binary size if needed',
+        '# Use appropriate CPU target features',
+        '# Consider using jemalloc for better memory management',
+        '# Enable debug symbols only in debug builds',
+        '# Use cargo-bloat to analyze binary size',
+        '# Consider splitting into multiple smaller binaries'
+    ].
+
+% ============================================================================
+% Template Selection Interface
+% ============================================================================
+
+% Interactive Docker template selection
+select_docker_template(ProjectName) :-
+    write('Docker Template Selection for '), write(ProjectName), nl,
+    write('====================================='), nl,
+    write('Available templates:'), nl,
+    write('1. Production (optimized, multi-stage)'), nl,
+    write('2. Development (with dev tools)'), nl,
+    write('3. CI/CD (testing and validation)'), nl,
+    write('4. Multi-architecture (AMD64 + ARM64)'), nl,
+    write('5. All templates + Docker Compose'), nl,
+    write('Choice (1-5): '),
+    read(Choice),
+    generate_selected_template(Choice, ProjectName).
+
+generate_selected_template(1, ProjectName) :-
+    nl, write('Generating production Dockerfile...'), nl, nl,
+    generate_rust_dockerfile(ProjectName, production).
+
+generate_selected_template(2, ProjectName) :-
+    nl, write('Generating development Dockerfile...'), nl, nl,
+    generate_rust_dev_dockerfile(ProjectName).
+
+generate_selected_template(3, ProjectName) :-
+    nl, write('Generating CI/CD Dockerfile...'), nl, nl,
+    generate_rust_ci_dockerfile(ProjectName).
+
+generate_selected_template(4, ProjectName) :-
+    nl, write('Generating multi-architecture Dockerfile...'), nl, nl,
+    generate_rust_multiarch_dockerfile(ProjectName).
+
+generate_selected_template(5, ProjectName) :-
+    nl, write('Generating complete Docker setup...'), nl, nl,
+    write('=== Production Dockerfile ==='), nl,
+    generate_rust_dockerfile(ProjectName, production),
+    nl, nl,
+    write('=== Development Dockerfile (Dockerfile.dev) ==='), nl,
+    generate_rust_dev_dockerfile(ProjectName),
+    nl, nl,
+    write('=== docker-compose.yml ==='), nl,
+    generate_docker_compose(ProjectName),
+    nl, nl,
+    write('=== .dockerignore ==='), nl,
+    generate_dockerignore().
+
+% ============================================================================
+% Utility Predicates
+% ============================================================================
+
+% Replace spaces with dashes in character list
+replace_spaces_with_dashes([], []).
+replace_spaces_with_dashes([' '|Rest], ['-'|NewRest]) :-
+    replace_spaces_with_dashes(Rest, NewRest).
+replace_spaces_with_dashes([Char|Rest], [Char|NewRest]) :-
+    Char \= ' ',
+    replace_spaces_with_dashes(Rest, NewRest).
+
+% Validate Dockerfile syntax
+validate_rust_dockerfile(Instructions) :-
+    forall(member(Instruction, Instructions), 
+           (validate_docker_instruction(Instruction) ->
+               true ; 
+               (write('Invalid instruction: '), write(Instruction), nl, fail)
+           )).
+
+validate_docker_instruction(from(_, _)) :- !.
+validate_docker_instruction(from(_)) :- !.
+validate_docker_instruction(run(_)) :- !.
+validate_docker_instruction(copy(_, _)) :- !.
+validate_docker_instruction(workdir(_)) :- !.
+validate_docker_instruction(env(_, _)) :- !.
+validate_docker_instruction(user(_)) :- !.
+validate_docker_instruction(cmd(_)) :- !.
+validate_docker_instruction(expose(_)) :- !.
+validate_docker_instruction(Comment) :- 
+    atom_chars(Comment, [#|_]), !.
+validate_docker_instruction(_) :- fail.
+
+% Estimate Docker image size
+estimate_rust_image_size(Strategy, SizeMB) :-
+    (   Strategy = production -> SizeMB = 50
+    ;   Strategy = development -> SizeMB = 1500
+    ;   Strategy = ci -> SizeMB = 1200
+    ;   SizeMB = 100
+    ).
+
+% ============================================================================
+% Example Queries
+% ============================================================================
+
+% To generate production Dockerfile:
+% ?- generate_rust_dockerfile(rust_hello_world, production).
+
+% To generate development setup:
+% ?- generate_rust_dev_dockerfile(rust_hello_world).
+
+% To generate complete Docker setup:
+% ?- generate_selected_template(5, rust_hello_world).
+
+% Interactive template selection:
+% ?- select_docker_template(rust_hello_world).
