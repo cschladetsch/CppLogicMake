@@ -10,7 +10,8 @@
 
 param(
     [Parameter(Mandatory = $true)]
-    [string[]]$Input,
+    [Alias("Input")]
+    [string[]]$ProjectInput,
 
     [string]$Output = "CMakeLists.txt",
 
@@ -26,26 +27,38 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 Push-Location $RepoRoot
 try {
-    $binName = if ($IsWindows) { "logicmake.exe" } else { "logicmake" }
+    $binName = if ($IsWindows -or $env:OS -eq "Windows_NT") { "logicmake.exe" } else { "logicmake" }
     $driver = Join-Path $BuildDir $binName
+    $configDriver = Join-Path (Join-Path $BuildDir "Release") $binName
+
+    if (-not (Test-Path $driver) -and (Test-Path $configDriver)) {
+        $driver = $configDriver
+    }
 
     if (-not (Test-Path $driver)) {
         Write-Host "driver not built yet, building..." -ForegroundColor Yellow
         & "$PSScriptRoot/build.ps1" -BuildDir $BuildDir
         if ($LASTEXITCODE -ne 0) { throw "build failed" }
+        if (-not (Test-Path $driver) -and (Test-Path $configDriver)) {
+            $driver = $configDriver
+        }
     }
 
     $driverArgs = @("--schema", $Schema)
-    foreach ($i in $Input) { $driverArgs += @("--input", $i) }
+    foreach ($i in $ProjectInput) { $driverArgs += @("--input", $i) }
 
-    if ($Input.Count -gt 1) {
+    if ($ProjectInput.Count -gt 1) {
         if (-not $OutputDir) { throw "-OutputDir is required when passing multiple -Input files" }
         $driverArgs += @("--output-dir", $OutputDir)
     } else {
+        $outputParent = Split-Path -Parent $Output
+        if ($outputParent) {
+            New-Item -ItemType Directory -Force -Path $outputParent | Out-Null
+        }
         $driverArgs += @("--output", $Output)
     }
 
-    & $driver @driverArgs
+    & (Resolve-Path $driver) @driverArgs
     if ($LASTEXITCODE -ne 0) { throw "generation failed" }
 }
 finally {

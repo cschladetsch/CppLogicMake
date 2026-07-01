@@ -17,6 +17,20 @@ namespace logicmake {
 namespace {
 
 std::string shellQuote(const std::string& s) {
+#if defined(_WIN32)
+    std::string out = "\"";
+    for (char c : s) {
+        if (c == '"') {
+            out += "\\\"";
+        } else if (c == '\\') {
+            out += "\\\\";
+        } else {
+            out += c;
+        }
+    }
+    out += "\"";
+    return out;
+#else
     std::string out = "'";
     for (char c : s) {
         if (c == '\'') {
@@ -27,6 +41,7 @@ std::string shellQuote(const std::string& s) {
     }
     out += "'";
     return out;
+#endif
 }
 
 int exitCodeOf(int pcloseStatus) {

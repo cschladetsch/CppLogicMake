@@ -20,6 +20,18 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+if ($IsWindows -or $env:OS -eq "Windows_NT") {
+    $pathValue = [System.Environment]::GetEnvironmentVariable("Path", "Process")
+    if (-not $pathValue) {
+        $pathValue = [System.Environment]::GetEnvironmentVariable("PATH", "Process")
+    }
+    if ($pathValue) {
+        [System.Environment]::SetEnvironmentVariable("PATH", $null, "Process")
+        [System.Environment]::SetEnvironmentVariable("Path", $null, "Process")
+        [System.Environment]::SetEnvironmentVariable("Path", $pathValue, "Process")
+    }
+}
+
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 Push-Location $RepoRoot
 try {
@@ -30,11 +42,40 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "submodule init failed" }
     }
 
-    $cc = if ($Compiler -eq "clang") { "clang" } else { "gcc" }
-    $cxx = if ($Compiler -eq "clang") { "clang++" } else { "g++" }
+    $isWindows = $IsWindows -or $env:OS -eq "Windows_NT"
+    $useNinja = $isWindows -and $Compiler -eq "clang" -and
+        [bool](Get-Command ninja -ErrorAction SilentlyContinue)
+    $cc = if ($Compiler -eq "clang") {
+        "clang"
+    } else {
+        "gcc"
+    }
+    $cxx = if ($Compiler -eq "clang") {
+        "clang++"
+    } else {
+        "g++"
+    }
+
+    $cachePath = Join-Path $BuildDir "CMakeCache.txt"
+    if ($useNinja -and (Test-Path $cachePath)) {
+        $cache = Get-Content $cachePath -Raw
+        if ($cache -notmatch "CMAKE_GENERATOR:INTERNAL=Ninja") {
+            Write-Host "build dir was configured without Ninja/Clang, regenerating CMake cache..." -ForegroundColor Yellow
+            Remove-Item -Force -LiteralPath $cachePath
+            $cmakeFiles = Join-Path $BuildDir "CMakeFiles"
+            if (Test-Path $cmakeFiles) {
+                Remove-Item -Recurse -Force -LiteralPath $cmakeFiles
+            }
+        }
+    }
 
     $cmakeArgs = @(
-        "-S", ".", "-B", $BuildDir,
+        "-S", ".", "-B", $BuildDir
+    )
+    if ($useNinja) {
+        $cmakeArgs += @("-G", "Ninja")
+    }
+    $cmakeArgs += @(
         "-DCMAKE_C_COMPILER=$cc",
         "-DCMAKE_CXX_COMPILER=$cxx",
         "-DCMAKE_BUILD_TYPE=$Config"

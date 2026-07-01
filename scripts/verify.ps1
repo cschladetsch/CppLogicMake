@@ -21,11 +21,19 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 Push-Location $RepoRoot
 try {
-    $binName = if ($IsWindows) { "logicmake.exe" } else { "logicmake" }
+    $binName = if ($IsWindows -or $env:OS -eq "Windows_NT") { "logicmake.exe" } else { "logicmake" }
     $driver = Join-Path $BuildDir $binName
+    $configDriver = Join-Path (Join-Path $BuildDir "Release") $binName
+    if (-not (Test-Path $driver) -and (Test-Path $configDriver)) {
+        $driver = $configDriver
+    }
+
     if (-not (Test-Path $driver)) {
         & "$PSScriptRoot/build.ps1" -BuildDir $BuildDir
         if ($LASTEXITCODE -ne 0) { throw "build failed" }
+        if (-not (Test-Path $driver) -and (Test-Path $configDriver)) {
+            $driver = $configDriver
+        }
     }
 
     if (-not $ScratchDir) {
@@ -41,7 +49,7 @@ try {
     Copy-Item -Recurse -Force "examples" (Join-Path $ScratchDir "examples")
 
     $generated = Join-Path $ScratchDir "CMakeLists.txt"
-    & $driver --input "examples/kai_workspace.pl" --output $generated
+    & (Resolve-Path $driver) --input "examples/kai_workspace.pl" --output $generated
     if ($LASTEXITCODE -ne 0) { throw "generation failed" }
 
     Push-Location $ScratchDir

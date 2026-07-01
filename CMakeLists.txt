@@ -76,6 +76,11 @@ target_link_libraries(logicmake_core PUBLIC prolog_core Threads::Threads)
 
 add_executable(logicmake src/main.cpp)
 target_link_libraries(logicmake PRIVATE logicmake_core)
+add_custom_command(TARGET logicmake POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_FILE:logicmake>
+            ${CMAKE_BINARY_DIR}/$<TARGET_FILE_NAME:logicmake>
+)
 
 enable_testing()
 add_subdirectory(tests)
