@@ -4,11 +4,12 @@ Prolog-resolved C++ build graphs, transpiled to CMake.
 
 CppLogicMake replaces CMake's authoring layer — not its generator
 backends. You describe targets and dependencies as Prolog facts.
-[CppProlog](https://github.com/cschladetsch/CppProlog), embedded
-directly as a library, resolves the graph (transitive dependencies,
-conditional links, cycle detection). A driver emits a
-`CMakeLists.txt`. CMake still does what it has always done well:
-generating Ninja, Xcode, and MSVC projects from that file.
+[CppProlog](https://github.com/cschladetsch/CppProlog), checked out
+as the `Ext/CppProlog` submodule and built as a library target,
+resolves the graph (transitive dependencies, conditional links,
+cycle detection). A driver emits a `CMakeLists.txt`. CMake still
+does what it has always done well: generating Ninja, Xcode, and
+MSVC projects from that file.
 
 ## Why this exists
 
@@ -259,7 +260,7 @@ that doesn't.
 ```
 CppLogicMake/
 ├── Ext/                     submodules — see "Dependencies" below
-│   ├── CppProlog/             resolution engine, embedded as a library
+│   ├── CppProlog/             resolution engine, checked out as a submodule
 │   └── googletest/
 ├── prolog/
 │   └── targets.pl            schema + derived rules
@@ -295,9 +296,10 @@ git submodule update --init --recursive
 (`scripts/build.ps1` does this automatically if `Ext/` looks empty.)
 
 - **[CppProlog](https://github.com/cschladetsch/CppProlog)** — built
-  directly from its sources as a `prolog_core` library target defined
-  in this repo's own `CMakeLists.txt`. Deliberately *not*
-  `add_subdirectory`'d wholesale: CppProlog's own build pulls in
+  from the checked-out `Ext/CppProlog` submodule as a
+  `prolog_core` library target defined in this repo's own
+  `CMakeLists.txt`. Deliberately *not* `add_subdirectory`'d
+  wholesale: CppProlog's own build pulls in
   googletest, google/benchmark, and linenoise-ng via `FetchContent`
   to build its own tests, benchmarks, and examples, none of which
   CppLogicMake needs, and it would collide with the googletest
@@ -438,13 +440,13 @@ covers that gap by actually running `cmake --configure` and `cmake
 
 ## Status
 
-The resolution rules in `prolog/targets.pl`, the direct-embedding
-driver, git-backed source resolution, and the CMake emission step are
-working end to end against `examples/kai_workspace.pl` — verified
-under both clang and g++, clean under ThreadSanitizer, and the
-generated output actually configures and builds with real CMake, not
-just this tool's own tests. Not yet run against a real production
-repository.
+The resolution rules in `prolog/targets.pl`, the submodule-backed
+driver, git-backed source resolution, and the CMake emission step
+are working end to end against `examples/kai_workspace.pl` —
+verified under both clang and g++, clean under ThreadSanitizer, and
+the generated output actually configures and builds with real CMake,
+not just this tool's own tests. Not yet run against a real
+production repository.
 
 ## Relationship to CppProlog
 
