@@ -166,6 +166,18 @@ repo) doesn't block generation the way a failed source pathspec does.
 `examples/kai_workspace.pl` describes a small multi-target workspace,
 backed by real fixture source files under `examples/kai_workspace/`
 so the example is genuinely buildable, not illustrative pseudo-code.
+Its dependency graph — solid = public, dashed = private dep or a
+guarded link:
+
+```mermaid
+flowchart LR
+    node["kai_node<br/>(exe)"] --> core["kai_core<br/>(lib)"]
+    core --> lang["kai_language<br/>(interface)"]
+    core --> enet["enet<br/>(interface)"]
+    core -. private .-> fmt["fmt"]
+    enet -. "platform(linux)" .-> pthread(["pthread"])
+```
+
 Querying the resolved graph once loaded:
 
 ```prolog
@@ -361,6 +373,15 @@ generate, configure, and build — into one command:
 
 ```powershell
 ./logimake.ps1 build examples/hello_world.pl
+```
+
+```mermaid
+flowchart LR
+    pl["project.pl"] --> gen
+    subgraph one["logimake build — one command"]
+        gen["generate.ps1<br/>→ CMakeLists.txt"] --> cfg["cmake -S -B"] --> bld["cmake --build"]
+    end
+    bld --> exe(["built binary"])
 ```
 
 `build` is the default verb, so `./logimake.ps1 examples/hello_world.pl`
