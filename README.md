@@ -244,33 +244,38 @@ $ cmake -S . -B build && cmake --build build
 
 ## Performance
 
-Timed on the (single-core) machine this was developed on — a real
-lower bound would be higher on a typical multi-core dev machine,
-lower on nothing, since there's no code path in `resolveAll` that
-gets *slower* with more cores:
+Timed on an AMD Ryzen 9 3900X (12 cores / 24 threads), native Windows:
 
 | Scenario | Wall clock |
 |---|---|
-| Single project (5 targets, 3 `sources` pathspecs, 4 git subprocess calls) | ~6 ms resolve+emit, ~22 ms full process incl. startup |
-| 10 independent projects, parallel | ~85 ms total |
+| Single project (5 targets, 3 `sources` pathspecs, 4 git subprocess calls) | ~100 ms resolve+emit, ~255 ms full process incl. startup |
+| 10 independent projects, parallel | ~320 ms total |
 
 The internal timing breakdown (resolve, including every git
 subprocess call, plus emit) is printed on every run:
 
 ```
-wrote CMakeLists.txt (5 targets, 6.35845 ms)
+wrote CMakeLists.txt (5 targets, 110.139 ms)
 ```
 
-Both numbers are one to two orders of magnitude under the "few hundred
-milliseconds" target. The dominant cost isn't Prolog resolution — that
-part alone is sub-millisecond for a graph this size — it's the git
-subprocess calls (one `git ls-files` per `sources/2` pathspec, plus
-two for the provenance stamp), each paying real fork/exec overhead.
-That's also exactly where scale would eventually bite: a target with
-many separate `sources/2` pathspecs pays one subprocess launch each,
-so a schema encouraging fewer, broader pathspecs per target (`"src/**/
-*.cpp"` rather than one fact per subdirectory) stays cheaper than one
-that doesn't.
+Almost all of that is git subprocess overhead, and it is heavily
+platform-dependent. The Prolog resolution itself is sub-millisecond for
+a graph this size; the cost is the `git ls-files` calls — one per
+`sources/2` pathspec, plus two for the provenance stamp. On Windows each
+goes through a `cmd.exe` + `git.exe` process launch costing tens of
+milliseconds; on Linux the same calls are sub-millisecond `fork`/`exec`,
+so a Linux/WSL run of the identical driver lands one to two orders of
+magnitude lower. That is also exactly where scale bites: a target with
+many separate `sources/2` pathspecs pays one subprocess launch each, so
+a schema encouraging fewer, broader pathspecs per target
+(`"src/**/*.cpp"` rather than one fact per subdirectory) stays cheaper
+than one that doesn't — and disproportionately so on Windows.
+
+Note the shape across cores. The single-project figures are effectively
+single-threaded — one input is one worker — so they don't improve with
+core count. The 10-projects-in-parallel figure does: `resolveAll` hands
+each input to its own thread, so ten projects cost only marginally more
+wall clock than one (~320 ms vs ~255 ms) instead of ten times as much.
 
 ## Repository layout
 
