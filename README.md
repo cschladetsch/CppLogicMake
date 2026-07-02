@@ -270,7 +270,9 @@ CppLogicMake/
 ├── prolog/
 │   └── targets.pl            schema + derived rules
 ├── examples/
-│   ├── kai_workspace.pl       example project description
+│   ├── hello_world.pl         minimal single-exe example
+│   ├── hello_world/           its one git-tracked source file
+│   ├── kai_workspace.pl       multi-target example project description
 │   └── kai_workspace/         real, git-tracked fixture sources it points at
 ├── src/
 │   ├── prolog_engine.*        thin wrapper around prolog::Interpreter
@@ -278,12 +280,13 @@ CppLogicMake/
 │   ├── resolver.*             runs the fixed query set, builds TargetInfo
 │   ├── cmake_emitter.*        TargetInfo -> CMakeLists.txt text
 │   └── main.cpp               CLI: arg parsing, parallel dispatch
-├── tests/                    GTest suite (16 tests, 3 suites)
+├── tests/                    GTest suite (20 tests, 3 suites)
 ├── scripts/
 │   ├── build.ps1               configure + build (clang by default)
 │   ├── generate.ps1            run the driver against one or more .pl files
 │   ├── test.ps1                 build + ctest
 │   └── verify.ps1               generate + actually configure & build the result
+├── logimake.ps1              one-command wrapper: generate + configure + build
 ├── CMakeLists.txt
 ├── LICENSE
 └── README.md
@@ -350,6 +353,71 @@ This writes `generated/a.cmake`, `generated/b.cmake`,
 nothing exotic, nothing that needs CppLogicMake present at
 CMake-configure time.
 
+## One-command builds (`logimake`)
+
+`generate.ps1` only emits a `CMakeLists.txt`; you then run CMake
+yourself. `logimake.ps1` (at the repo root) collapses the whole loop —
+generate, configure, and build — into one command:
+
+```powershell
+./logimake.ps1 build examples/hello_world.pl
+```
+
+`build` is the default verb, so `./logimake.ps1 examples/hello_world.pl`
+is equivalent. It locates the repo root by walking *up* from the
+project file (looking for `scripts/generate.ps1` + `prolog/targets.pl`),
+so it works from any directory inside the repo — for example, from
+`examples/`:
+
+```powershell
+cd examples
+../logimake.ps1 build hello_world.pl
+```
+
+Generated CMake and build artifacts land under
+`build/logimake/<project>/` in the repo, never beside the sources. This
+works from a nested build directory because emitted source and include
+paths are made relative to the generated `CMakeLists.txt`'s own
+directory, not the repo root (CMake resolves a target's relative paths
+against the directory containing its `CMakeLists.txt`).
+
+The other verbs forward to the matching script:
+`logimake generate|verify|test`.
+
+| Option | Meaning |
+|---|---|
+| `-BuildDir <dir>` | where generated + build files go (default `build/logimake/<project>`) |
+| `-Generator <name>` | CMake generator, e.g. `Ninja` or `"Visual Studio 17 2022"` |
+| `-CxxCompiler <path>` | compiler passed to CMake (default `clang++`) |
+| `-LogicMakeRoot <dir>` | repo root, used if auto-discovery can't find it |
+
+### Calling `logimake` from anywhere
+
+To make `logimake` a global command, add a wrapper function to your
+PowerShell profile (`$PROFILE`) that calls the script by absolute path:
+
+```powershell
+function logimake {
+    $script = 'C:\path\to\CppLogicMake\logimake.ps1'
+    if (-not $env:LOGICMAKE_ROOT) {
+        $env:LOGICMAKE_ROOT = Split-Path -Parent $script
+    }
+    & $script @args
+}
+```
+
+A profile function — rather than putting the repo on `PATH` — is what
+lets you type a bare `logimake`: Windows `PATHEXT` doesn't include
+`.PS1`, so a script on `PATH` wouldn't resolve without its extension.
+Defaulting `LOGICMAKE_ROOT` to the script's own folder additionally lets
+it build project files that live *outside* the repo tree, where the
+walk-up discovery has nothing to find. Reload with `. $PROFILE` (or open
+a new shell), then from any directory:
+
+```powershell
+logimake build C:\path\to\project.pl
+```
+
 ## Multi-threading
 
 ```mermaid
@@ -407,17 +475,20 @@ for no measurable benefit.
 ./scripts/test.ps1
 ```
 
-16 tests across three suites, run via CTest/GTest — all passing under
+20 tests across three suites, run via CTest/GTest — all passing under
 both a normal build and a full `-fsanitize=thread` build:
 
 - `CMakeEmitter` — pure `TargetInfo` → CMake text, no interpreter
-  needed. Includes the sourceless-lib-becomes-INTERFACE case.
-- `Resolver` — against the real embedded engine and
-  `examples/kai_workspace.pl`: transitive closure includes private
-  deps, platform guards resolve correctly, an unasserted `debug` guard
-  yields zero defines, sources are real git-tracked files (not raw
-  globs), no false positives from `cyclic/1`, `depends_on/2` finds
-  every affected target.
+  needed. Includes the sourceless-lib-becomes-INTERFACE case and that
+  source/include paths are rebased relative to the output directory
+  (both the "../" ascent and the clean-descent cases).
+- `Resolver` — against the real embedded engine and the example project
+  files: transitive closure includes private deps, platform guards
+  resolve correctly, an unasserted `debug` guard yields zero defines,
+  sources are real git-tracked files (not raw globs), no false
+  positives from `cyclic/1`, `depends_on/2` finds every affected
+  target, and the minimal `hello_world.pl` example resolves to a single
+  exe with its git-tracked source.
 - `Threading` — concurrent resolutions (after `warmUpPrologRuntime()`)
   agree with sequential resolution.
 

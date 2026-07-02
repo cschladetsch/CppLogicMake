@@ -135,3 +135,17 @@ TEST(CMakeEmitter, PathsAreRebasedRelativeToOutputDirectory) {
                           "../../examples/hello_world/include)"),
               std::string::npos);
 }
+
+TEST(CMakeEmitter, PathRebasingIsCleanWhenSourceIsUnderOutputDir) {
+    // When a source already lives under the output directory the rebased
+    // path must be a plain descent with no leading "../" — this is the
+    // other side of the lexical relative computation and would regress
+    // silently if rebasing were done by naively counting separators.
+    TargetInfo exe;
+    exe.name = "gen";
+    exe.kind = "exe";
+    exe.sources = {"build/gen/generated/main.cpp"};
+
+    const auto out = logicmake::emitCMakeLists({exe}, std::nullopt, "build/gen");
+    EXPECT_NE(out.find("add_executable(gen generated/main.cpp)"), std::string::npos);
+}

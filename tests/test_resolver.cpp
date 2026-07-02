@@ -93,6 +93,24 @@ TEST(Resolver, NoCyclesInTheExampleWorkspace) {
     }
 }
 
+TEST(Resolver, ResolvesHelloWorldExample) {
+    // The minimal single-exe example (examples/hello_world.pl): one exe
+    // target whose "examples/hello_world/*.cpp" pathspec resolves to the
+    // real git-tracked source, no deps, no links, no defines.
+    logicmake::Resolver resolver("prolog/targets.pl", "examples/hello_world.pl");
+    const auto targets = resolver.resolve();
+
+    ASSERT_EQ(targets.size(), 1u);
+    const auto hello = targets.front();
+    EXPECT_EQ(hello.name, "hello_world");
+    EXPECT_EQ(hello.kind, "exe");
+    EXPECT_TRUE(contains(hello.sources, "examples/hello_world/main.cpp"));
+    EXPECT_TRUE(hello.dependsAll.empty());
+    EXPECT_TRUE(hello.links.empty());
+    EXPECT_TRUE(hello.defines.empty());
+    EXPECT_FALSE(hello.cyclic);
+}
+
 TEST(Resolver, DependsOnFindsEverythingThatWouldBreak) {
     // depends_on(fmt, T) — both kai_core (direct private dep) and
     // kai_node (transitive) should come back; this is the "what
