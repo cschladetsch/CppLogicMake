@@ -28,3 +28,6 @@ Thumbs.db
 
 # generated output from the driver itself, when run against examples/
 examples/*.generated.cmake
+
+# launcher shims written by install.ps1 (bake machine-specific paths)
+bin/

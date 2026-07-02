@@ -50,6 +50,9 @@ std::vector<TargetInfo> Resolver::resolve() const {
     for (const auto& row : engine.query("target(T,K)", {"T", "K"})) {
         ensure(row[0]).kind = row[1];
     }
+    for (const auto& row : engine.query("cxx_standard(T,N)", {"T", "N"})) {
+        ensure(row[0]).cxxStandard = stripQuotes(row[1]);
+    }
     for (const auto& row : engine.query("sources(T,S)", {"T", "S"})) {
         const auto pathspec = stripQuotes(row[1]);
         const auto files = resolveGitSources(pathspec);

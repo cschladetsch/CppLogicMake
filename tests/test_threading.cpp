@@ -18,7 +18,7 @@
 namespace {
 
 std::size_t resolveTargetCount() {
-    logicmake::Resolver resolver("prolog/targets.pl", "examples/kai_workspace.pl");
+    logicmake::Resolver resolver("prolog/targets.pl", "examples/kai_workspace.lm");
     return resolver.resolve().size();
 }
 

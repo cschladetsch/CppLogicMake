@@ -1,5 +1,5 @@
 #!/usr/bin/env pwsh
-# verify.ps1 — generates CMakeLists.txt from examples/kai_workspace.pl
+# verify.ps1 — generates CMakeLists.txt from examples/kai_workspace.lm
 # and actually configures + builds it with real CMake, in a scratch
 # directory. This is the accuracy check that matters: passing GTest
 # doesn't prove the *output* is valid CMake, only that this repo's own
@@ -49,7 +49,7 @@ try {
     Copy-Item -Recurse -Force "examples" (Join-Path $ScratchDir "examples")
 
     $generated = Join-Path $ScratchDir "CMakeLists.txt"
-    & (Resolve-Path $driver) --input "examples/kai_workspace.pl" --output $generated
+    & (Resolve-Path $driver) --input "examples/kai_workspace.lm" --output $generated
     if ($LASTEXITCODE -ne 0) { throw "generation failed" }
 
     Push-Location $ScratchDir

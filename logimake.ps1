@@ -140,6 +140,62 @@ function Resolve-ProjectPath {
     return (Resolve-Path -LiteralPath (Join-Path (Get-Location) $Project)).ProviderPath
 }
 
+function Resolve-ProjectRoot {
+    param([string]$ProjectDir)
+
+    Push-Location -LiteralPath $ProjectDir
+    try {
+        $top = git rev-parse --show-toplevel 2>$null
+        if ($LASTEXITCODE -eq 0 -and $top) {
+            return (Resolve-Path -LiteralPath ([string]$top).Trim()).ProviderPath
+        }
+    }
+    catch {
+        # git not installed or not a repo — fall through to the .pl dir.
+    }
+    finally {
+        Pop-Location
+    }
+
+    return (Resolve-Path -LiteralPath $ProjectDir).ProviderPath
+}
+
+function Resolve-ProjectFileArgument {
+    param([string]$Argument)
+
+    # Already carries a project extension: hand it to the builder as-is
+    # so a missing file fails normally (file-not-found), not as a
+    # "no project file" error.
+    if ($Argument -match '\.(pl|lm)$') {
+        return $Argument
+    }
+
+    # A bare name resolves, in order, to:
+    #   1. <name>/<name>.lm  — a project living in its own directory
+    #   2. <name>.lm         — a bare project file in the current dir
+    # .lm is the going-forward extension; .pl is accepted at each step
+    # only during the transition, and only as a second choice.
+    $leaf = Split-Path -Leaf $Argument
+    if (Test-Path -LiteralPath $Argument -PathType Container) {
+        foreach ($ext in @(".lm", ".pl")) {
+            $inDir = Join-Path $Argument "$leaf$ext"
+            if (Test-Path -LiteralPath $inDir -PathType Leaf) {
+                return $inDir
+            }
+        }
+    }
+
+    foreach ($ext in @(".lm", ".pl")) {
+        $bare = "$Argument$ext"
+        if (Test-Path -LiteralPath $bare -PathType Leaf) {
+            return $bare
+        }
+    }
+
+    # No directory-scoped or bare project file matched.
+    return $null
+}
+
 function Read-OptionValue {
     param(
         [object[]]$InputArgs,
@@ -185,23 +241,33 @@ function Invoke-ProjectBuild {
                 throw "Unknown build option: $arg"
             }
             if ($project) {
-                throw "Only one project .pl file can be passed to logimake build"
+                throw "Only one project (.lm) file can be passed to logimake build"
             }
             $project = $arg
         }
     }
 
     if (-not $project) {
-        throw "Usage: logimake build <project.pl> [-BuildDir <dir>] [-LogicMakeRoot <dir>]"
+        throw "Usage: logimake build <project.lm> [-BuildDir <dir>] [-LogicMakeRoot <dir>]"
     }
 
     $projectPath = Resolve-ProjectPath $project
     $projectDir = Split-Path -Parent $projectPath
-    $repoRoot = Resolve-LogicMakeRoot -StartDir $projectDir -LogicMakeRoot $logicMakeRoot
+
+    # $toolRoot only locates the tool's own driver binary and schema.
+    # Everything else — source resolution, build output, cmake — is
+    # anchored to the project, not the tool repo.
+    $toolRoot = Resolve-LogicMakeRoot -StartDir $projectDir -LogicMakeRoot $logicMakeRoot
+
+    # The project's git root is the working directory the driver and
+    # cmake operate from: source pathspecs in the .pl file are resolved
+    # (via git ls-files) and emitted relative to it. Fall back to the
+    # .pl file's own directory when it isn't inside a git repo.
+    $projectRoot = Resolve-ProjectRoot -ProjectDir $projectDir
 
     $projectName = [System.IO.Path]::GetFileNameWithoutExtension($projectPath)
     if (-not $buildDir) {
-        $buildDir = Join-Path $repoRoot "build/logimake/$projectName"
+        $buildDir = Join-Path $projectRoot "build/logimake/$projectName"
     } elseif (-not [System.IO.Path]::IsPathRooted($buildDir)) {
         $buildDir = Join-Path (Get-Location) $buildDir
     }
@@ -213,30 +279,29 @@ function Invoke-ProjectBuild {
     New-Item -ItemType Directory -Force -Path $scratchSourceDir | Out-Null
     New-Item -ItemType Directory -Force -Path $scratchBuildDir | Out-Null
 
-    Push-Location $repoRoot
+    # Never let a failed generation leave a previous run's CMakeLists.txt
+    # in place for cmake to build — clear it first so a resolver error
+    # (which now halts generate.ps1) can't silently fall through to a
+    # stale target.
+    if (Test-Path -LiteralPath $generatedCMake) {
+        Remove-Item -Force -LiteralPath $generatedCMake
+    }
+
+    # The generated CMakeLists.txt references the project's sources by
+    # path relative to its own location (back into $projectRoot), so no
+    # copy of the source tree into the scratch dir is needed — cmake
+    # compiles the originals in place while build artifacts stay under
+    # $scratchBuildDir. The driver runs with $projectRoot as its working
+    # directory (via -WorkingDirectory) so git and glob resolution
+    # happen in the project's repo.
+    & "$toolRoot/scripts/generate.ps1" -Input $projectPath -Output $generatedCMake -WorkingDirectory $projectRoot
+    if ($LASTEXITCODE -ne 0) { throw "CppLogicMake generation failed" }
+    if (-not (Test-Path -LiteralPath $generatedCMake)) {
+        throw "CppLogicMake generation did not produce $generatedCMake"
+    }
+
+    Push-Location $projectRoot
     try {
-        & "$repoRoot/scripts/generate.ps1" -Input $projectPath -Output $generatedCMake
-        if ($LASTEXITCODE -ne 0) { throw "CppLogicMake generation failed" }
-
-        $projectRelativePath = Resolve-Path -LiteralPath $projectPath -Relative
-        $projectRelativePath = $projectRelativePath.TrimStart(".", "\", "/")
-        if (-not $projectRelativePath.StartsWith("..")) {
-            $projectTop = ($projectRelativePath -split '[\\/]', 2)[0]
-            $trackedFiles = git ls-files -- $projectTop
-            if ($LASTEXITCODE -ne 0) { throw "Could not enumerate tracked project files" }
-            foreach ($file in $trackedFiles) {
-                $sourceFile = Join-Path $repoRoot $file
-                $targetFile = Join-Path $scratchSourceDir $file
-                $targetDir = Split-Path -Parent $targetFile
-                New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
-                Copy-Item -Force -LiteralPath $sourceFile -Destination $targetFile
-            }
-        } else {
-            $projectLeafDir = Split-Path -Leaf $projectDir
-            $copyTarget = Join-Path $scratchSourceDir $projectLeafDir
-            Copy-Item -Recurse -Force $projectDir $copyTarget
-        }
-
         $cmakeArgs = @("-S", $scratchSourceDir, "-B", $scratchBuildDir)
         if ($generator) {
             $cmakeArgs += @("-G", $generator)
@@ -307,7 +372,7 @@ function Invoke-RepoScript {
 function Show-Usage {
     Write-Host @"
 Usage:
-  logimake build <project.pl> [options]
+  logimake build <project.lm> [options]
   logimake generate <scripts/generate.ps1 args>
   logimake verify [scripts/verify.ps1 args]
   logimake test [scripts/test.ps1 args]
@@ -319,40 +384,46 @@ Build options:
   -CxxCompiler <path>    C++ compiler passed to CMake, default clang++
 
 Compatibility:
-  logimake <project.pl>     Same as logimake build <project.pl>
+  logimake <project.lm>     Same as logimake build <project.lm>
+  logimake <name>           Resolves <name>/<name>.lm, else <name>.lm in the current
+                            directory (.pl accepted during the transition)
 "@
 }
 
-if ($Command.EndsWith(".pl") -or (Test-Path -LiteralPath $Command)) {
-    $buildArgs = @($Command) + @($Rest)
-    Invoke-ProjectBuild -BuildArgs $buildArgs
-    return
-}
-
+# Recognized subcommands are dispatched before any file resolution, so a
+# mistyped command can never be misread as a (missing) project file.
 switch ($Command) {
     "build" {
-        $buildArgs = @($Rest)
-        Invoke-ProjectBuild -BuildArgs $buildArgs
+        Invoke-ProjectBuild -BuildArgs @($Rest)
+        return
     }
     "generate" {
         Invoke-RepoScript -ScriptName "generate" -ScriptArgs $Rest
+        return
     }
     "verify" {
         Invoke-RepoScript -ScriptName "verify" -ScriptArgs $Rest
+        return
     }
     "test" {
         Invoke-RepoScript -ScriptName "test" -ScriptArgs $Rest
+        return
     }
-    "help" {
+    { $_ -in @("help", "--help", "-h") } {
         Show-Usage
-    }
-    "--help" {
-        Show-Usage
-    }
-    "-h" {
-        Show-Usage
-    }
-    default {
-        throw "Unknown logimake command: $Command"
+        return
     }
 }
+
+# Not a subcommand: treat the argument as a project file to build,
+# resolving a bare <name> to <name>/<name>.lm or a bare <name>.lm.
+$projectFile = Resolve-ProjectFileArgument $Command
+if ($projectFile) {
+    Invoke-ProjectBuild -BuildArgs (@($projectFile) + @($Rest))
+    return
+}
+
+# Hard stop — never fall through to some other target (which is how the
+# earlier root-confusion bug built the wrong thing).
+[Console]::Error.WriteLine("No subcommand or project file found for '$Command'. Try: logimake build <path-to-.lm-file>, or place $Command.lm inside a $Command/ directory.")
+exit 1

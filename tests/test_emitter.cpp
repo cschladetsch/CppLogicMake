@@ -136,6 +136,49 @@ TEST(CMakeEmitter, PathsAreRebasedRelativeToOutputDirectory) {
               std::string::npos);
 }
 
+TEST(CMakeEmitter, PerTargetCxxStandardOverridesFileDefault) {
+    // A target carrying an explicit cxx_standard must get a
+    // set_target_properties override on top of the file-level
+    // CMAKE_CXX_STANDARD; a target without one must not.
+    TargetInfo modern;
+    modern.name = "fib_cpp23";
+    modern.kind = "exe";
+    modern.sources = {"cpp23/main.cpp"};
+    modern.cxxStandard = "23";
+
+    TargetInfo legacy;
+    legacy.name = "fib_cpp17";
+    legacy.kind = "exe";
+    legacy.sources = {"cpp17/main.cpp"};
+    legacy.cxxStandard = "17";
+
+    TargetInfo plain;
+    plain.name = "plain";
+    plain.kind = "exe";
+    plain.sources = {"plain/main.cpp"};
+
+    const auto out = logicmake::emitCMakeLists({modern, legacy, plain});
+    EXPECT_NE(out.find("set_target_properties(fib_cpp23 PROPERTIES "
+                       "CXX_STANDARD 23 CXX_STANDARD_REQUIRED ON)"),
+              std::string::npos);
+    EXPECT_NE(out.find("set_target_properties(fib_cpp17 PROPERTIES "
+                       "CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)"),
+              std::string::npos);
+    EXPECT_EQ(out.find("set_target_properties(plain"), std::string::npos);
+}
+
+TEST(CMakeEmitter, InterfaceTargetIgnoresCxxStandard) {
+    // An INTERFACE target has nothing to compile, so a stray
+    // cxx_standard on it must not produce a set_target_properties line.
+    TargetInfo iface;
+    iface.name = "headers";
+    iface.kind = "interface";
+    iface.cxxStandard = "23";
+
+    const auto out = logicmake::emitCMakeLists({iface});
+    EXPECT_EQ(out.find("set_target_properties(headers"), std::string::npos);
+}
+
 TEST(CMakeEmitter, PathRebasingIsCleanWhenSourceIsUnderOutputDir) {
     // When a source already lives under the output directory the rebased
     // path must be a plain descent with no leading "../" — this is the

@@ -1,0 +1,15 @@
+% =====================================================================
+% Cross-standard C++ fib demo. Two executables, both computing the sum
+% of the first ten Fibonacci numbers (F(0)..F(9) = 0+1+1+2+3+5+8+13+21+34
+% = 88), differing only in the C++ standard they are built with. This is
+% the fixture for the Fib.CrossLanguageEndToEnd test, which also runs the
+% Python and Rust siblings in this directory and asserts all four agree.
+% =====================================================================
+
+target(fib_cpp23, exe).
+sources(fib_cpp23, "examples/fib/cpp23/*.cpp").
+cxx_standard(fib_cpp23, 23).
+
+target(fib_cpp17, exe).
+sources(fib_cpp17, "examples/fib/cpp17/*.cpp").
+cxx_standard(fib_cpp17, 17).

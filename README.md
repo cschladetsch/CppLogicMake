@@ -72,7 +72,7 @@ you actually want are exactly what a logic engine is built for:
 
 ```mermaid
 flowchart LR
-    A["project.pl<br/>(target/depends/link facts)"] --> C
+    A["project.lm<br/>(target/depends/link facts)"] --> C
     B["prolog/targets.pl<br/>(depends_all, resolved_link,<br/>cyclic, depends_on)"] --> C
     C[CppProlog engine] --> D[resolved target graph]
     D --> E[driver]
@@ -118,7 +118,7 @@ Derived, from `prolog/targets.pl`, never written by hand:
 
 CppProlog's `Interpreter::loadFile` parses a file as a flat sequence
 of facts and rules — it does not execute `:- Goal.` directives. There
-is no `:- consult(...)` line anywhere in this repo's `.pl` files; the
+is no `:- consult(...)` line anywhere in this repo's `.lm` files; the
 driver calls `loadFile` once for `prolog/targets.pl` and once per
 project file instead. This was confirmed against the actual
 interpreter, not assumed — see `src/prolog_engine.cpp`.
@@ -163,7 +163,7 @@ repo) doesn't block generation the way a failed source pathspec does.
 
 ## Example
 
-`examples/kai_workspace.pl` describes a small multi-target workspace,
+`examples/kai_workspace.lm` describes a small multi-target workspace,
 backed by real fixture source files under `examples/kai_workspace/`
 so the example is genuinely buildable, not illustrative pseudo-code.
 Its dependency graph — solid = public, dashed = private dep or a
@@ -287,9 +287,9 @@ CppLogicMake/
 ├── prolog/
 │   └── targets.pl            schema + derived rules
 ├── examples/
-│   ├── hello_world.pl         minimal single-exe example
+│   ├── hello_world.lm         minimal single-exe example
 │   ├── hello_world/           its one git-tracked source file
-│   ├── kai_workspace.pl       multi-target example project description
+│   ├── kai_workspace.lm       multi-target example project description
 │   └── kai_workspace/         real, git-tracked fixture sources it points at
 ├── src/
 │   ├── prolog_engine.*        thin wrapper around prolog::Interpreter
@@ -300,11 +300,11 @@ CppLogicMake/
 ├── tests/                    GTest suite (20 tests, 3 suites)
 ├── scripts/
 │   ├── build.ps1               configure + build (clang by default)
-│   ├── generate.ps1            run the driver against one or more .pl files
+│   ├── generate.ps1            run the driver against one or more .lm files
 │   ├── test.ps1                 build + ctest
 │   └── verify.ps1               generate + actually configure & build the result
 ├── logimake.ps1              one-command wrapper: generate + configure + build
-├── install.ps1               add `logimake` to your PowerShell profile
+├── install.ps1               put `logimake` on your PATH (global command)
 ├── CMakeLists.txt
 ├── LICENSE
 └── README.md
@@ -355,13 +355,13 @@ Requires CMake 3.25+ and either clang or gcc with C++23 support.
 Single project:
 
 ```powershell
-./scripts/generate.ps1 -Input examples/kai_workspace.pl -Output CMakeLists.txt
+./scripts/generate.ps1 -Input examples/kai_workspace.lm -Output CMakeLists.txt
 ```
 
 Multiple independent projects, resolved in parallel:
 
 ```powershell
-./scripts/generate.ps1 -Input a.pl,b.pl,c.pl -OutputDir generated/
+./scripts/generate.ps1 -Input a.lm,b.lm,c.lm -OutputDir generated/
 ```
 
 This writes `generated/a.cmake`, `generated/b.cmake`,
@@ -378,19 +378,19 @@ yourself. `logimake.ps1` (at the repo root) collapses the whole loop —
 generate, configure, and build — into one command:
 
 ```powershell
-./logimake.ps1 build examples/hello_world.pl
+./logimake.ps1 build examples/hello_world.lm
 ```
 
 ```mermaid
 flowchart LR
-    pl["project.pl"] --> gen
+    pl["project.lm"] --> gen
     subgraph one["logimake build — one command"]
         gen["generate.ps1<br/>→ CMakeLists.txt"] --> cfg["cmake -S -B"] --> bld["cmake --build"]
     end
     bld --> exe(["built binary"])
 ```
 
-`build` is the default verb, so `./logimake.ps1 examples/hello_world.pl`
+`build` is the default verb, so `./logimake.ps1 examples/hello_world.lm`
 is equivalent. It locates the repo root by walking *up* from the
 project file (looking for `scripts/generate.ps1` + `prolog/targets.pl`),
 so it works from any directory inside the repo — for example, from
@@ -398,7 +398,7 @@ so it works from any directory inside the repo — for example, from
 
 ```powershell
 cd examples
-../logimake.ps1 build hello_world.pl
+../logimake.ps1 build hello_world.lm
 ```
 
 Generated CMake and build artifacts land under
@@ -420,41 +420,47 @@ The other verbs forward to the matching script:
 
 ### Calling `logimake` from anywhere
 
-Run the installer once:
+Starting from a fresh checkout, one command sets everything up:
 
 ```powershell
+git clone --recursive https://github.com/cschladetsch/CppLogicMake.git
+cd CppLogicMake
 ./install.ps1
 ```
 
-It adds a small wrapper function to your PowerShell profile (`$PROFILE`)
-that invokes this repo's `logimake.ps1` by absolute path. Reload with
-`. $PROFILE` (or open a new shell), then from any directory:
+`install.ps1` builds the driver (initialising the `Ext/` submodules if
+needed), writes launcher shims into `bin/`, and puts that directory on
+your user `PATH` — so a bare `logimake` resolves as an ordinary
+executable in **every** shell (cmd, PowerShell, git-bash), not just
+PowerShell. Open a new shell (so it picks up the PATH change), then from
+any directory:
 
 ```powershell
-logimake build C:\path\to\project.pl
+logimake build C:\path\to\project.lm
 ```
 
-The managed block is marker-delimited and idempotent — re-run
-`./install.ps1` after moving the repo to refresh the baked-in path, or
-`./install.ps1 -Uninstall` to remove it. Under the hood it is just a
-function:
+Prerequisites: PowerShell 7 (`pwsh`), CMake ≥ 3.25, and a C++23 compiler
+(`clang`/`gcc`) on `PATH`; `ninja` is used if present. Prefer
+`git clone --recursive` over the ZIP download so the `Ext/CppProlog` and
+`Ext/googletest` submodules come with it (a ZIP has neither, and no
+`.git` to fetch them from) — if you already cloned without it, run
+`git submodule update --init --recursive`. Pass `./install.ps1 -SkipBuild`
+to only wire up the command and defer the build to first use. If a
+downloaded `install.ps1` is blocked by execution policy, run it as
+`pwsh -ExecutionPolicy Bypass -File ./install.ps1`.
 
-```powershell
-function logimake {
-    $script = 'C:\path\to\CppLogicMake\logimake.ps1'
-    if (-not $env:LOGICMAKE_ROOT) {
-        $env:LOGICMAKE_ROOT = Split-Path -Parent $script
-    }
-    & $script @args
-}
-```
+Two shims are generated, both with this repo's absolute path baked in: a
+`logimake.cmd` for cmd/PowerShell (`.CMD` is in the default `PATHEXT`, so
+unlike a bare `.ps1` it resolves without typing an extension) and an
+extensionless `logimake` shell script for git-bash/WSL. Each defaults
+`LOGICMAKE_ROOT` to this repo, which lets it build project files that
+live *outside* the repo tree, where the walk-up discovery has nothing to
+find.
 
-A profile function — rather than putting the repo on `PATH` — is what
-lets you type a bare `logimake`: Windows `PATHEXT` doesn't include
-`.PS1`, so a script on `PATH` wouldn't resolve without its extension.
-Defaulting `LOGICMAKE_ROOT` to the script's own folder additionally lets
-it build project files that live *outside* the repo tree, where the
-walk-up discovery has nothing to find.
+The install is idempotent — re-run `./install.ps1` after moving the repo
+to refresh the baked-in path (PATH keeps a single entry), or
+`./install.ps1 -Uninstall` to remove the shims and the PATH entry. It
+also cleans up the PowerShell-profile function used by earlier versions.
 
 ## Multi-threading
 
@@ -525,7 +531,7 @@ both a normal build and a full `-fsanitize=thread` build:
   resolve correctly, an unasserted `debug` guard yields zero defines,
   sources are real git-tracked files (not raw globs), no false
   positives from `cyclic/1`, `depends_on/2` finds every affected
-  target, and the minimal `hello_world.pl` example resolves to a single
+  target, and the minimal `hello_world.lm` example resolves to a single
   exe with its git-tracked source.
 - `Threading` — concurrent resolutions (after `warmUpPrologRuntime()`)
   agree with sequential resolution.
@@ -556,7 +562,7 @@ covers that gap by actually running `cmake --configure` and `cmake
 
 The resolution rules in `prolog/targets.pl`, the submodule-backed
 driver, git-backed source resolution, and the CMake emission step
-are working end to end against `examples/kai_workspace.pl` —
+are working end to end against `examples/kai_workspace.lm` —
 verified under both clang and g++, clean under ThreadSanitizer, and
 the generated output actually configures and builds with real CMake,
 not just this tool's own tests. Not yet run against a real

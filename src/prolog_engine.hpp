@@ -11,7 +11,7 @@
 //      and rules (Database::loadProgram just calls Parser::parseProgram
 //      and asserts every clause). It does not execute ":- Goal."
 //      directives — there is no special-casing for the RULE_OP token
-//      when it appears with no head. Project .pl files therefore
+//      when it appears with no head. Project .lm files therefore
 //      contain only facts and rules, never directives; the driver
 //      calls loadFile once per file instead.
 //

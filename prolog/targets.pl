@@ -12,6 +12,8 @@
 % --- schema (documentation only, Prolog doesn't enforce arity here) ---
 % target(Name, Kind).            Kind = lib | exe | interface
 % sources(Name, Glob).
+% cxx_standard(Name, Std).       per-target C++ standard (17|20|23...),
+%                                overrides the file-level default.
 % include(Name, Path).
 % depends(Name, Dep).            direct dependency, public by default
 % depends(Name, Dep, private).   private dependency

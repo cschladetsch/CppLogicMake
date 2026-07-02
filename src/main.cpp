@@ -1,11 +1,11 @@
 // main.cpp — CppLogicMake driver CLI
 //
 // Single project:
-//   logicmake --input project.pl --output CMakeLists.txt
+//   logicmake --input project.lm --output CMakeLists.txt
 //
 // Multiple independent projects, resolved in parallel (one worker per
 // input, capped at hardware_concurrency — see resolveAll() below):
-//   logicmake --input a.pl --input b.pl --input c.pl --output-dir generated/
+//   logicmake --input a.lm --input b.lm --input c.lm --output-dir generated/
 #include <atomic>
 #include <chrono>
 #include <filesystem>
@@ -58,7 +58,7 @@ std::optional<Args> parse(int argc, char** argv) {
     }
 
     if (args.inputs.empty()) {
-        throw std::runtime_error("at least one --input <project.pl> is required");
+        throw std::runtime_error("at least one --input <project.lm> is required");
     }
     if (args.inputs.size() > 1 && args.outputDir.empty()) {
         throw std::runtime_error(
@@ -71,9 +71,9 @@ std::optional<Args> parse(int argc, char** argv) {
 
 void printUsage() {
     std::cerr
-        << "logicmake --input <project.pl> --output <CMakeLists.txt>\n"
+        << "logicmake --input <project.lm> --output <CMakeLists.txt>\n"
         << "          [--schema <prolog/targets.pl>]\n"
-        << "logicmake --input <a.pl> --input <b.pl> ... --output-dir <dir>\n"
+        << "logicmake --input <a.lm> --input <b.lm> ... --output-dir <dir>\n"
         << "          [--schema <prolog/targets.pl>]\n";
 }
 
@@ -82,7 +82,12 @@ struct Job {
     std::filesystem::path output;
 };
 
-void runJob(const Args& args, const Job& job,
+// Returns true only if the job produced a CMakeLists.txt. A false
+// return must propagate to a non-zero process exit code (see main):
+// the logimake wrapper keys off that exit code to halt before running
+// cmake, so a swallowed resolver failure here would leave it building a
+// stale CMakeLists.txt from a previous run.
+bool runJob(const Args& args, const Job& job,
             const std::optional<std::string>& gitStamp) {
     const auto start = std::chrono::steady_clock::now();
     try {
@@ -101,7 +106,7 @@ void runJob(const Args& args, const Job& job,
         if (!out) {
             std::cerr << "error: could not write " << job.output.string()
                       << "\n";
-            return;
+            return false;
         }
         out << cmake;
 
@@ -112,9 +117,11 @@ void runJob(const Args& args, const Job& job,
 
         std::cerr << "wrote " << job.output.string() << " ("
                    << targets.size() << " targets, " << elapsedMs << " ms)\n";
+        return true;
     } catch (const std::exception& e) {
         std::cerr << "error resolving " << job.input.string() << ": "
                    << e.what() << "\n";
+        return false;
     }
 }
 
@@ -127,7 +134,10 @@ void runJob(const Args& args, const Job& job,
 // rather than a fixed static split, so a slow project file (a large
 // dependency graph) doesn't leave a worker idle while others still
 // have jobs queued.
-void resolveAll(const Args& args, const std::vector<Job>& jobs) {
+// Returns true only if every job succeeded. Any failure must surface as
+// a non-zero exit code so downstream tooling stops rather than building
+// stale output.
+bool resolveAll(const Args& args, const std::vector<Job>& jobs) {
     logicmake::warmUpPrologRuntime();
     const auto gitStamp = logicmake::gitProvenanceStamp();
 
@@ -136,6 +146,7 @@ void resolveAll(const Args& args, const std::vector<Job>& jobs) {
         std::max(1u, std::thread::hardware_concurrency()));
 
     std::atomic<std::size_t> next{0};
+    std::atomic<bool> anyFailed{false};
     std::vector<std::jthread> pool;
     pool.reserve(workerCount);
 
@@ -144,11 +155,19 @@ void resolveAll(const Args& args, const std::vector<Job>& jobs) {
             for (;;) {
                 const auto i = next.fetch_add(1, std::memory_order_relaxed);
                 if (i >= jobs.size()) return;
-                runJob(args, jobs[i], gitStamp);
+                if (!runJob(args, jobs[i], gitStamp)) {
+                    anyFailed.store(true, std::memory_order_relaxed);
+                }
             }
         });
     }
-    // std::jthread joins automatically when `pool` goes out of scope.
+    // Join explicitly before reading anyFailed: std::jthread would join
+    // on `pool`'s destruction, but that happens after this return
+    // evaluates, so we must wait for every worker here first.
+    for (auto& t : pool) {
+        t.join();
+    }
+    return !anyFailed.load(std::memory_order_relaxed);
 }
 
 }  // namespace
@@ -179,6 +198,5 @@ int main(int argc, char** argv) {
         }
     }
 
-    resolveAll(*args, jobs);
-    return 0;
+    return resolveAll(*args, jobs) ? 0 : 1;
 }
