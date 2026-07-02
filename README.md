@@ -304,6 +304,7 @@ CppLogicMake/
 │   ├── test.ps1                 build + ctest
 │   └── verify.ps1               generate + actually configure & build the result
 ├── logimake.ps1              one-command wrapper: generate + configure + build
+├── install.ps1               add `logimake` to your PowerShell profile
 ├── CMakeLists.txt
 ├── LICENSE
 └── README.md
@@ -419,8 +420,24 @@ The other verbs forward to the matching script:
 
 ### Calling `logimake` from anywhere
 
-To make `logimake` a global command, add a wrapper function to your
-PowerShell profile (`$PROFILE`) that calls the script by absolute path:
+Run the installer once:
+
+```powershell
+./install.ps1
+```
+
+It adds a small wrapper function to your PowerShell profile (`$PROFILE`)
+that invokes this repo's `logimake.ps1` by absolute path. Reload with
+`. $PROFILE` (or open a new shell), then from any directory:
+
+```powershell
+logimake build C:\path\to\project.pl
+```
+
+The managed block is marker-delimited and idempotent — re-run
+`./install.ps1` after moving the repo to refresh the baked-in path, or
+`./install.ps1 -Uninstall` to remove it. Under the hood it is just a
+function:
 
 ```powershell
 function logimake {
@@ -437,12 +454,7 @@ lets you type a bare `logimake`: Windows `PATHEXT` doesn't include
 `.PS1`, so a script on `PATH` wouldn't resolve without its extension.
 Defaulting `LOGICMAKE_ROOT` to the script's own folder additionally lets
 it build project files that live *outside* the repo tree, where the
-walk-up discovery has nothing to find. Reload with `. $PROFILE` (or open
-a new shell), then from any directory:
-
-```powershell
-logimake build C:\path\to\project.pl
-```
+walk-up discovery has nothing to find.
 
 ## Multi-threading
 
