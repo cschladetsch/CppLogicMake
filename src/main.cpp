@@ -94,7 +94,8 @@ void runJob(const Args& args, const Job& job,
                       << job.input.string() << "\n";
         }
 
-        const auto cmake = logicmake::emitCMakeLists(targets, gitStamp);
+        const auto cmake =
+            logicmake::emitCMakeLists(targets, gitStamp, job.output.parent_path());
 
         std::ofstream out(job.output);
         if (!out) {

@@ -42,8 +42,8 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "submodule init failed" }
     }
 
-    $isWindows = $IsWindows -or $env:OS -eq "Windows_NT"
-    $useNinja = $isWindows -and $Compiler -eq "clang" -and
+    $onWindows = $IsWindows -or $env:OS -eq "Windows_NT"
+    $useNinja = $onWindows -and $Compiler -eq "clang" -and
         [bool](Get-Command ninja -ErrorAction SilentlyContinue)
     $cc = if ($Compiler -eq "clang") {
         "clang"

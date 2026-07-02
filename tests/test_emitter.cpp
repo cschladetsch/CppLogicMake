@@ -104,3 +104,34 @@ TEST(CMakeEmitter, SourcelessLibIsEmittedAsInterfaceNotBrokenAddLibrary) {
               std::string::npos);
     EXPECT_NE(out.find("NOTE: 'enet' has no resolved sources"), std::string::npos);
 }
+
+TEST(CMakeEmitter, PathsAreRebasedRelativeToOutputDirectory) {
+    // Source/include paths arrive relative to the repo root (where `git
+    // ls-files` ran), but CMake resolves a target's relative paths
+    // against the directory holding the CMakeLists.txt. If that file is
+    // written to a subdirectory the paths must be rebased, or
+    // `cmake -S <subdir>` fails to find the sources. Rebasing is purely
+    // lexical against a common base, so the expected "../../" result is
+    // independent of where the repo actually lives on disk.
+    TargetInfo exe;
+    exe.name = "hello_world";
+    exe.kind = "exe";
+    exe.sources = {"examples/hello_world/main.cpp"};
+    exe.includes = {"examples/hello_world/include"};
+
+    // Empty output dir (the default) = written at the repo root: paths
+    // are already correct and must be left untouched.
+    const auto rooted = logicmake::emitCMakeLists({exe});
+    EXPECT_NE(rooted.find("add_executable(hello_world examples/hello_world/main.cpp)"),
+              std::string::npos);
+
+    // Written two levels down: paths must be rebased with "../../".
+    const auto nested =
+        logicmake::emitCMakeLists({exe}, std::nullopt, "build/hello_world");
+    EXPECT_NE(
+        nested.find("add_executable(hello_world ../../examples/hello_world/main.cpp)"),
+        std::string::npos);
+    EXPECT_NE(nested.find("target_include_directories(hello_world PUBLIC "
+                          "../../examples/hello_world/include)"),
+              std::string::npos);
+}
