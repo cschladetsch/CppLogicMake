@@ -1,4 +1,4 @@
-# <img src="resources/logo.svg" alt="logimake logo" height="44" align="middle" /> CppLogicMake
+# <img src="resources/logo.svg" alt="logimake logo" height="64" align="middle" /> CppLogicMake
 
 Prolog-resolved C++ build graphs, transpiled to CMake.
 
