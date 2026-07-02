@@ -307,7 +307,7 @@ CppLogicMake/
 ├── install.ps1               put `logimake` on your PATH (global command)
 ├── CMakeLists.txt
 ├── LICENSE
-└── README.md
+└── Readme.md
 ```
 
 ## Dependencies
