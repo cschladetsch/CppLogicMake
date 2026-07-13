@@ -1,12 +1,36 @@
 // cmake_emitter.cpp
 #include "cmake_emitter.hpp"
 
+#include <algorithm>
+#include <cctype>
 #include <filesystem>
 #include <sstream>
 
 namespace logicmake {
 
 namespace {
+
+// project(generated LANGUAGES CXX) alone leaves CMake without a configured
+// C compiler, which breaks configure for any target whose sources include
+// plain .c files (e.g. a vendored C library like GLFW, added as
+// sources/2 facts rather than pulled in via find_package/FetchContent -
+// see README "Non-goals"). Scanning resolved sources for a .c extension
+// and switching to LANGUAGES C CXX when found keeps existing pure-C++
+// projects emitting exactly what they did before (no .c sources = no
+// behavior change) while making mixed C/C++ targets configure correctly.
+bool anyTargetHasCSources(const std::vector<TargetInfo>& targets) {
+    for (const auto& t : targets) {
+        for (const auto& src : t.sources) {
+            std::string ext = std::filesystem::path(src).extension().string();
+            std::transform(ext.begin(), ext.end(), ext.begin(),
+                           [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+            if (ext == ".c") {
+                return true;
+            }
+        }
+    }
+    return false;
+}
 
 // Rewrites a path emitted by the resolver (relative to the driver's
 // working directory) so it is instead relative to outputDir, the
@@ -141,7 +165,8 @@ std::string emitCMakeLists(const std::vector<TargetInfo>& targets,
         out << "# Generated from commit " << *gitStamp << "\n";
     }
     out << "cmake_minimum_required(VERSION 3.25)\n";
-    out << "project(generated LANGUAGES CXX)\n\n";
+    out << "project(generated LANGUAGES "
+        << (anyTargetHasCSources(targets) ? "C CXX" : "CXX") << ")\n\n";
     out << "set(CMAKE_CXX_STANDARD 23)\n";
     out << "set(CMAKE_CXX_STANDARD_REQUIRED ON)\n\n";
 

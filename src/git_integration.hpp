@@ -13,7 +13,12 @@
 namespace logicmake {
 
 // Resolves a git pathspec (e.g. "src/*.cpp") to the exact list of
-// currently tracked files matching it, via `git ls-files -- <pathspec>`.
+// currently tracked files matching it, via
+// `git ls-files --recurse-submodules -- <pathspec>`. The
+// --recurse-submodules flag means a pathspec reaching into a vendored
+// git submodule (e.g. "Ext/glfw/src/*.c") resolves the files inside it
+// too, not just the submodule's own gitlink entry — required for a
+// submodule's sources to be usable as sources/2 facts at all.
 //
 // This exists because CMake does not glob-expand a wildcard passed
 // directly to add_library/add_executable — `add_library(foo

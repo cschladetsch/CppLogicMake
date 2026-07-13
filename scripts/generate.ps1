@@ -71,10 +71,21 @@ finally {
 }
 
 $driverArgs = @("--schema", $schemaPath)
+
+# A single -Input value can arrive duplicated after being forwarded through
+# logimake.ps1's wrapper chain (array splatting across nested script
+# invocations - `& $scriptPath @($split.Args)` in Invoke-RepoScript) without
+# actually being multiple distinct project files. De-duplicate before doing
+# anything else with it, so a duplicated single value never trips the
+# multi-input path or gets passed to the driver twice.
+$ProjectInput = @($ProjectInput | Select-Object -Unique)
+
 foreach ($i in $ProjectInput) { $driverArgs += @("--input", $i) }
 
 if ($ProjectInput.Count -gt 1) {
-    if (-not $OutputDir) { throw "-OutputDir is required when passing multiple -Input files" }
+    if (-not $OutputDir) {
+        throw "-OutputDir is required when passing multiple -Input files (got: $($ProjectInput -join ', '))"
+    }
     $driverArgs += @("--output-dir", $OutputDir)
 } else {
     $driverArgs += @("--output", $Output)

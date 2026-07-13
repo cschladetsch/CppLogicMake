@@ -192,3 +192,51 @@ TEST(CMakeEmitter, PathRebasingIsCleanWhenSourceIsUnderOutputDir) {
     const auto out = logicmake::emitCMakeLists({exe}, std::nullopt, "build/gen");
     EXPECT_NE(out.find("add_executable(gen generated/main.cpp)"), std::string::npos);
 }
+
+TEST(CMakeEmitter, MixedCAndCxxSourcesEmitBothLanguages) {
+    // A target whose sources include a plain .c file (e.g. a vendored C
+    // library like GLFW, added via sources/2 facts rather than
+    // find_package/FetchContent) needs `project(... LANGUAGES C CXX)` or
+    // CMake never configures a C compiler and configure fails outright.
+    TargetInfo glfw;
+    glfw.name = "glfw";
+    glfw.kind = "lib";
+    glfw.sources = {"Ext/glfw/src/context.c", "Ext/glfw/src/win32_init.c"};
+
+    const auto out = logicmake::emitCMakeLists({glfw});
+    EXPECT_NE(out.find("project(generated LANGUAGES C CXX)"), std::string::npos);
+}
+
+TEST(CMakeEmitter, PureCxxProjectStillEmitsCxxOnlyLanguage) {
+    // Backward compatibility: a project with no .c sources anywhere must
+    // keep emitting the original CXX-only language line unchanged.
+    TargetInfo hello;
+    hello.name = "hello";
+    hello.kind = "exe";
+    hello.sources = {"src/main.cpp"};
+
+    const auto out = logicmake::emitCMakeLists({hello});
+    EXPECT_NE(out.find("project(generated LANGUAGES CXX)"), std::string::npos);
+    EXPECT_EQ(out.find("LANGUAGES C CXX"), std::string::npos);
+}
+
+TEST(CMakeEmitter, CDetectionIsCaseInsensitiveAndIgnoresLookalikeExtensions) {
+    // ".C" (uppercase, a valid C source extension on case-sensitive
+    // filesystems) must still trigger C-language mode, while extensions
+    // that merely contain "c" (".cpp", ".cc", ".cxx") must not.
+    TargetInfo upper;
+    upper.name = "legacy";
+    upper.kind = "lib";
+    upper.sources = {"legacy/old.C"};
+
+    const auto out = logicmake::emitCMakeLists({upper});
+    EXPECT_NE(out.find("project(generated LANGUAGES C CXX)"), std::string::npos);
+
+    TargetInfo cxxVariants;
+    cxxVariants.name = "variants";
+    cxxVariants.kind = "lib";
+    cxxVariants.sources = {"src/a.cpp", "src/b.cc", "src/c.cxx"};
+
+    const auto out2 = logicmake::emitCMakeLists({cxxVariants});
+    EXPECT_EQ(out2.find("LANGUAGES C CXX"), std::string::npos);
+}

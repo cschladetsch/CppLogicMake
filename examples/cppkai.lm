@@ -1,0 +1,180 @@
+% =====================================================================
+% CppKAI/KAI workspace description for CppLogicMake.
+%
+% This file is intended to be loaded while the KAI repository is the
+% current working directory. On this machine the sibling checkout is
+% named ../kai rather than ../CppKAI, but the source paths below are
+% deliberately relative to the KAI root.
+%
+% CppLogicMake resolves sources with git ls-files, so run generation
+% from the KAI checkout and pass this file as the input.
+% =====================================================================
+
+platform(windows).
+% networking.          % uncomment to include Network/Tau/network tools
+% build_window_app.    % uncomment to include the GLFW/OpenGL Window app
+
+% --- global KAI compile definitions from the root CMakeLists.txt ---
+target(kai_config, interface).
+define(kai_config, "KAI_USE_NAMESPACES").
+define(kai_config, "KAI_NAMESPACE_NAME=kai").
+define(kai_config, "KAI_USE_EXCEPTIONS").
+define(kai_config, "KAI_BOOST_UNORDERED_REGISTRY").
+define(kai_config, "KAI_DEBUG").
+define(kai_config, "KAI_VERSION_MAJOR=0").
+define(kai_config, "KAI_VERSION_MINOR=3").
+define(kai_config, "KAI_VERSION_PATCH=0").
+define(kai_config, "KAI_FORMAT_COMPATIBLE").
+define(kai_config, "_GLIBCXX_USE_CXX11_ABI=1").
+define(kai_config, "KAI_USE_ENET") :- networking.
+
+target(kai_headers, interface).
+include(kai_headers, "Include/").
+include(kai_headers, "Ext/rang/include/").
+depends(kai_headers, kai_config).
+
+% --- core library ---
+target(core, lib).
+sources(core, "Source/Library/Core/Source/*.cpp").
+include(core, "Include/").
+include(core, "Include/KAI/Core/").
+depends(core, kai_headers).
+
+% --- language-independent executor ---
+target(executor, lib).
+sources(executor, "Source/Library/Executor/Source/Bin.cpp").
+sources(executor, "Source/Library/Executor/Source/BinaryOperationHandler.cpp").
+sources(executor, "Source/Library/Executor/Source/Compiler.cpp").
+sources(executor, "Source/Library/Executor/Source/Continuation.cpp").
+sources(executor, "Source/Library/Executor/Source/Executor.cpp").
+sources(executor, "Source/Library/Executor/Source/ExecutorPerform.cpp").
+sources(executor, "Source/Library/Executor/Source/ExtractValueFromContinuation.cpp").
+sources(executor, "Source/Library/Executor/Source/Operation.cpp").
+sources(executor, "Source/Library/Executor/Source/PerformBinaryOp.cpp").
+sources(executor, "Source/Library/Executor/Source/SignedContinuation.cpp").
+sources(executor, "Source/Library/Executor/Source/Tree.cpp").
+sources(executor, "Source/Library/Executor/Source/Translator/LexerBase.cpp").
+sources(executor, "Source/Library/Executor/Source/Translator/Process.cpp").
+sources(executor, "Source/Library/Executor/Source/Translator/TokenBase.cpp").
+sources(executor, "Source/Library/Executor/Source/Translator/TranslatorCommon.cpp").
+include(executor, "Include/").
+include(executor, "Include/KAI/Executor/").
+depends(executor, core).
+depends(executor, common_lang).
+depends(executor, network) :- networking.
+
+% --- common language support ---
+target(common_lang, lib).
+sources(common_lang, "Source/Library/Language/Common/Source/*.cpp").
+include(common_lang, "Include/").
+include(common_lang, "Include/KAI/Language/Common/").
+include(common_lang, "Source/Library/Language/Include/").
+depends(common_lang, core).
+
+% --- Pi language ---
+target(pi_lang, lib).
+sources(pi_lang, "Source/Library/Language/Pi/Source/*.cpp").
+include(pi_lang, "Include/").
+include(pi_lang, "Include/KAI/Language/Pi/").
+include(pi_lang, "Source/Library/Language/Pi/Include/").
+depends(pi_lang, core).
+depends(pi_lang, common_lang).
+depends(pi_lang, executor).
+
+% --- Rho language ---
+target(rho_lang, lib).
+sources(rho_lang, "Source/Library/Language/Rho/Source/*.cpp").
+include(rho_lang, "Include/").
+include(rho_lang, "Include/KAI/Language/Rho/").
+include(rho_lang, "Source/Library/Language/Rho/Include/").
+depends(rho_lang, core).
+depends(rho_lang, common_lang).
+depends(rho_lang, pi_lang).
+depends(rho_lang, executor).
+
+% --- Tau/networking pieces ---
+target(tau_lang, lib) :- networking.
+sources(tau_lang, "Source/Library/Language/Tau/Source/Generate/*.cpp") :- networking.
+sources(tau_lang, "Source/Library/Language/Tau/Source/Tau/*.cpp") :- networking.
+include(tau_lang, "Include/") :- networking.
+include(tau_lang, "Include/KAI/Language/Tau/") :- networking.
+include(tau_lang, "Source/Library/Language/Tau/Include/") :- networking.
+depends(tau_lang, core) :- networking.
+depends(tau_lang, common_lang) :- networking.
+depends(tau_lang, executor) :- networking.
+
+target(network, lib) :- networking.
+sources(network, "Source/Library/Network/Source/*.cpp") :- networking.
+include(network, "Include/") :- networking.
+include(network, "Include/KAI/Network/") :- networking.
+include(network, "Ext/ENet/include/") :- networking.
+depends(network, core) :- networking.
+link(network, enet) :- networking.
+link(network, ws2_32) :- networking, platform(windows).
+link(network, winmm) :- networking, platform(windows).
+link(network, pthread) :- networking, platform(linux).
+
+% --- Console.cpp is split out in KAI's CMake to avoid a circular build ---
+target(console_lib, lib).
+sources(console_lib, "Source/Library/Executor/Source/Console.cpp").
+include(console_lib, "Include/").
+include(console_lib, "Include/KAI/Executor/").
+include(console_lib, "Include/KAI/Language/Rho/").
+include(console_lib, "Include/KAI/Language/Pi/").
+include(console_lib, "Include/KAI/Language/Common/").
+include(console_lib, "Source/Library/Language/Rho/Include/").
+include(console_lib, "Source/Library/Language/Pi/Include/").
+depends(console_lib, executor).
+depends(console_lib, pi_lang).
+depends(console_lib, rho_lang).
+depends(console_lib, common_lang).
+depends(console_lib, core).
+
+% --- apps ---
+target(console, exe).
+sources(console, "Source/App/Console/Source/Main.cpp").
+include(console, "Include/").
+depends(console, console_lib).
+depends(console, pi_lang).
+depends(console, rho_lang).
+depends(console, executor).
+depends(console, common_lang).
+depends(console, core).
+
+target(simple_server, exe) :- networking.
+sources(simple_server, "Source/App/Console/Source/SimpleServer.cpp") :- networking.
+include(simple_server, "Include/") :- networking.
+depends(simple_server, executor) :- networking.
+depends(simple_server, core) :- networking.
+depends(simple_server, network) :- networking.
+
+target(simple_client, exe) :- networking.
+sources(simple_client, "Source/App/Console/Source/SimpleClient.cpp") :- networking.
+include(simple_client, "Include/") :- networking.
+depends(simple_client, executor) :- networking.
+depends(simple_client, core) :- networking.
+depends(simple_client, network) :- networking.
+
+target(network_generate, exe) :- networking.
+sources(network_generate, "Source/App/NetworkGenerate/Source/Main.cpp") :- networking.
+include(network_generate, "Include/") :- networking.
+depends(network_generate, tau_lang) :- networking.
+depends(network_generate, rho_lang) :- networking.
+depends(network_generate, pi_lang) :- networking.
+depends(network_generate, executor) :- networking.
+depends(network_generate, core) :- networking.
+
+target(window, exe) :- build_window_app.
+sources(window, "Source/App/Window/Source/*.cpp") :- build_window_app.
+include(window, "Include/") :- build_window_app.
+include(window, "Ext/imgui/") :- build_window_app.
+include(window, "Source/App/Window/Source/") :- build_window_app.
+depends(window, pi_lang) :- build_window_app.
+depends(window, rho_lang) :- build_window_app.
+depends(window, executor) :- build_window_app.
+depends(window, common_lang) :- build_window_app.
+depends(window, core) :- build_window_app.
+link(window, "OpenGL::GL") :- build_window_app.
+link(window, "GLEW::GLEW") :- build_window_app.
+link(window, glfw) :- build_window_app.
+link(window, imgui) :- build_window_app.

@@ -100,8 +100,17 @@ std::string rtrim(std::string s) {
 }  // namespace
 
 std::vector<std::string> resolveGitSources(const std::string& pathspec) {
-    const auto result =
-        runShell("git ls-files -- " + shellQuote(pathspec) + " 2>&1");
+    // --recurse-submodules: without it, a pathspec pointing inside a real
+    // git submodule (e.g. "Ext/glfw/src/*.c") resolves to zero files —
+    // plain `git ls-files` only sees a submodule's own gitlink entry, not
+    // the tracked files inside it, since submodule content lives in its
+    // own separate index. With the flag, git ls-files transparently
+    // descends into any submodule the pathspec reaches (as long as it has
+    // been initialized/checked out via `git submodule update --init`) and
+    // returns paths relative to the superproject, same as any other
+    // tracked file. Requires git 2.11+ (2016), safe to assume.
+    const auto result = runShell("git ls-files --recurse-submodules -- " +
+                                  shellQuote(pathspec) + " 2>&1");
 
     if (result.exitCode != 0) {
         throw std::runtime_error(
