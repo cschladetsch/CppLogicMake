@@ -1,0 +1,14 @@
+% Minimal fixture exercising submodule/3, compile_options/3, and
+% install/2 in isolation from the shared kai_workspace fixture. Note
+% that submodule/3 facts are parsed here purely as data — Resolver
+% never touches the filesystem or git for them; only the driver's
+% pre-flight check in main.cpp does that (see prolog/targets.pl).
+
+target(demo, exe).
+sources(demo, "examples/hello_world/*.cpp").
+
+compile_options(demo, 'Clang', "-Wall -Wextra -Wpedantic").
+compile_options(demo, 'MSVC', "/W4 /utf-8").
+install(demo, bin).
+
+submodule(dearimgui, "https://github.com/ocornut/imgui.git", "Ext/imgui").

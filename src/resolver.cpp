@@ -77,6 +77,13 @@ std::vector<TargetInfo> Resolver::resolve() const {
     for (const auto& row : engine.query("resolved_define(T,M)", {"T", "M"})) {
         ensure(row[0]).defines.push_back(stripQuotes(row[1]));
     }
+    for (const auto& row : engine.query("compile_options(T,C,F)", {"T", "C", "F"})) {
+        ensure(row[0]).compileOptions.push_back(
+            {stripQuotes(row[1]), stripQuotes(row[2])});
+    }
+    for (const auto& row : engine.query("install(T,D)", {"T", "D"})) {
+        ensure(row[0]).installDest = stripQuotes(row[1]);
+    }
     for (const auto& row : engine.query("cyclic(T)", {"T"})) {
         ensure(row[0]).cyclic = true;
     }
@@ -85,6 +92,18 @@ std::vector<TargetInfo> Resolver::resolve() const {
     result.reserve(order.size());
     for (const auto& name : order) {
         result.push_back(byName.at(name));
+    }
+    return result;
+}
+
+std::vector<SubmoduleInfo> Resolver::resolveSubmodules() const {
+    PrologEngine engine;
+    engine.loadFile(schemaPath_);
+    engine.loadFile(projectPath_);
+
+    std::vector<SubmoduleInfo> result;
+    for (const auto& row : engine.query("submodule(N,U,P)", {"N", "U", "P"})) {
+        result.push_back({row[0], stripQuotes(row[1]), stripQuotes(row[2])});
     }
     return result;
 }

@@ -220,6 +220,81 @@ TEST(CMakeEmitter, PureCxxProjectStillEmitsCxxOnlyLanguage) {
     EXPECT_EQ(out.find("LANGUAGES C CXX"), std::string::npos);
 }
 
+TEST(CMakeEmitter, CompileOptionsEmitPerCompilerGeneratorExpressions) {
+    // One compile_options/3 fact per compiler -> one quoted generator
+    // expression each, so the same generated file is correct regardless
+    // of which compiler CMAKE_CXX_COMPILER_ID resolves to later.
+    TargetInfo exe;
+    exe.name = "procmon";
+    exe.kind = "exe";
+    exe.sources = {"src/main.cpp"};
+    exe.compileOptions = {
+        {"Clang", "-Wall -Wextra -Wpedantic"},
+        {"MSVC", "/W4 /utf-8"},
+    };
+
+    const auto out = logicmake::emitCMakeLists({exe});
+    EXPECT_NE(out.find("target_compile_options(procmon PRIVATE "
+                       "\"$<$<CXX_COMPILER_ID:Clang>:-Wall -Wextra -Wpedantic>\" "
+                       "\"$<$<CXX_COMPILER_ID:MSVC>:/W4 /utf-8>\")"),
+              std::string::npos);
+}
+
+TEST(CMakeEmitter, NoCompileOptionsFactsEmitNothing) {
+    TargetInfo exe;
+    exe.name = "plain";
+    exe.kind = "exe";
+    exe.sources = {"src/main.cpp"};
+
+    const auto out = logicmake::emitCMakeLists({exe});
+    EXPECT_EQ(out.find("target_compile_options"), std::string::npos);
+}
+
+TEST(CMakeEmitter, InterfaceTargetIgnoresCompileOptions) {
+    // Nothing of an INTERFACE target's own compiles, so a stray
+    // compile_options/3 fact on one must not produce a
+    // target_compile_options call.
+    TargetInfo iface;
+    iface.name = "headers";
+    iface.kind = "interface";
+    iface.compileOptions = {{"Clang", "-Wall"}};
+
+    const auto out = logicmake::emitCMakeLists({iface});
+    EXPECT_EQ(out.find("target_compile_options"), std::string::npos);
+}
+
+TEST(CMakeEmitter, InstallDestEmitsInstallRule) {
+    TargetInfo exe;
+    exe.name = "procmon";
+    exe.kind = "exe";
+    exe.sources = {"src/main.cpp"};
+    exe.installDest = "bin";
+
+    const auto out = logicmake::emitCMakeLists({exe});
+    EXPECT_NE(out.find("install(TARGETS procmon RUNTIME DESTINATION bin)"),
+              std::string::npos);
+}
+
+TEST(CMakeEmitter, NoInstallFactEmitsNoInstallRule) {
+    TargetInfo exe;
+    exe.name = "plain";
+    exe.kind = "exe";
+    exe.sources = {"src/main.cpp"};
+
+    const auto out = logicmake::emitCMakeLists({exe});
+    EXPECT_EQ(out.find("install("), std::string::npos);
+}
+
+TEST(CMakeEmitter, InterfaceTargetIgnoresInstallDest) {
+    TargetInfo iface;
+    iface.name = "headers";
+    iface.kind = "interface";
+    iface.installDest = "bin";
+
+    const auto out = logicmake::emitCMakeLists({iface});
+    EXPECT_EQ(out.find("install("), std::string::npos);
+}
+
 TEST(CMakeEmitter, CDetectionIsCaseInsensitiveAndIgnoresLookalikeExtensions) {
     // ".C" (uppercase, a valid C source extension on case-sensitive
     // filesystems) must still trigger C-language mode, while extensions

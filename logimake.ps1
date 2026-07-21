@@ -359,8 +359,19 @@ function Invoke-RepoScript {
     $split = Split-LogicMakeRootOption $ScriptArgs
     $repoRoot = Resolve-LogicMakeRoot -StartDir (Get-Location).ProviderPath -LogicMakeRoot $split.LogicMakeRoot
     $scriptPath = "$repoRoot/scripts/$ScriptName.ps1"
-    if ($split.Args -and $split.Args.Count -gt 0) {
-        & $scriptPath @($split.Args)
+
+    # NOTE: `@($split.Args)` is NOT a splat -- splatting only triggers on a
+    # bare `@variableName` token; `$split.Args` is a property-access
+    # expression, so `@(...)` here was just the array subexpression
+    # operator wrapping it back into a single array VALUE. That array was
+    # then passed as one positional argument, which PowerShell bound
+    # whole-cloth into the target script's first (array-typed) parameter --
+    # e.g. generate.ps1's -Input ended up holding every forwarded token,
+    # flag names included ("-Input", "<path>", "-Output", "<path>", ...).
+    # A true splat requires a plain variable, so copy to one first.
+    $forwardArgs = $split.Args
+    if ($forwardArgs -and $forwardArgs.Count -gt 0) {
+        & $scriptPath @forwardArgs
     } else {
         & $scriptPath
     }

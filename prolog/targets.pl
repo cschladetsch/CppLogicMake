@@ -20,6 +20,37 @@
 % define(Name, Macro).
 % define(Name, Macro) :- Guard.  conditional define
 % link(Name, Lib) :- Guard.      conditional link (platform libs etc.)
+% compile_options(Name, CompilerId, Flags).
+%                                CompilerId is a literal CMAKE_CXX_COMPILER_ID
+%                                value ('Clang'|'MSVC'|'GNU'|'AppleClang'...);
+%                                Flags is a single space-separated string.
+%                                Emitted as a per-compiler generator
+%                                expression, so the same generated
+%                                CMakeLists.txt is correct no matter which
+%                                compiler is chosen later at `cmake`
+%                                configure time — one fact per compiler,
+%                                no CMake if() needed.
+% install(Name, DestDir).        emits install(TARGETS Name RUNTIME
+%                                DESTINATION DestDir); skipped for targets
+%                                with no resolved sources (interface/
+%                                stand-in targets have nothing to install).
+% submodule(Name, Url, Path).    project-level fact (no target arg):
+%                                declares that Path is expected to be a
+%                                git submodule checked out from Url. Not a
+%                                fetch step — CppLogicMake never shells out
+%                                to `git submodule add` itself, since that
+%                                mutates repo state and needs network
+%                                access, both of which belong to a step a
+%                                human runs once, not to code generation.
+%                                The driver instead fails generation with
+%                                the exact command to run if Path is
+%                                missing/empty. Once vendored, its files
+%                                are referenced the ordinary way, through
+%                                sources(Name, "Path/*.cpp")/include(Name,
+%                                "Path/") facts — --recurse-submodules on
+%                                the underlying `git ls-files` call already
+%                                resolves through a checked-out submodule
+%                                like any other tracked path.
 % platform(windows). / platform(linux). / platform(macos).
 % debug.                         asserted only in debug configs
 % cross_compiling.

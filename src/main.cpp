@@ -92,6 +92,29 @@ bool runJob(const Args& args, const Job& job,
     const auto start = std::chrono::steady_clock::now();
     try {
         logicmake::Resolver resolver(args.schema, job.input);
+
+        // submodule/3 facts are a promise, not a fetch step (CppLogicMake
+        // never shells out to `git submodule add` itself — see
+        // prolog/targets.pl). Check that promise now, before trusting any
+        // sources/2 fact that reaches into a submodule's path, so a
+        // missing/never-initialized submodule fails generation with an
+        // actionable command instead of surfacing later as a confusing
+        // "matched no tracked files" error from resolveGitSources, or
+        // worse, a silently-empty target.
+        for (const auto& sub : resolver.resolveSubmodules()) {
+            std::error_code ec;
+            const bool present = std::filesystem::exists(sub.path, ec) && !ec &&
+                                  !std::filesystem::is_empty(sub.path, ec) && !ec;
+            if (!present) {
+                std::cerr << "error: submodule '" << sub.name << "' not vendored at '"
+                          << sub.path << "' - run:\n"
+                          << "  git submodule add " << sub.url << " " << sub.path
+                          << "\n"
+                          << "  git submodule update --init --recursive\n";
+                return false;
+            }
+        }
+
         const auto targets = resolver.resolve();
 
         if (targets.empty()) {

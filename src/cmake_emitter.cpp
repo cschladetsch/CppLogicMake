@@ -150,6 +150,28 @@ void emitTarget(std::ostringstream& out, const TargetInfo& t,
         out << ")\n";
     }
 
+    // Compiler warning/tuning flags, one generator expression per
+    // compile_options/3 fact so the same output is correct no matter
+    // which compiler CMAKE_CXX_COMPILER_ID resolves to at configure
+    // time — no per-compiler CMake if() branch needed. Not meaningful
+    // for an INTERFACE target (nothing of its own compiles).
+    if (!asInterface && !t.compileOptions.empty()) {
+        out << "target_compile_options(" << t.name << " PRIVATE";
+        for (const auto& group : t.compileOptions) {
+            out << " \"$<$<CXX_COMPILER_ID:" << group.compilerId << ">:"
+                << group.flags << ">\"";
+        }
+        out << ")\n";
+    }
+
+    // install(TARGETS ...) only makes sense for something that actually
+    // produced a build artifact; an INTERFACE target (or a "lib" with no
+    // resolved sources, which is emitted as INTERFACE above) has none.
+    if (!asInterface && !t.installDest.empty()) {
+        out << "install(TARGETS " << t.name << " RUNTIME DESTINATION "
+            << t.installDest << ")\n";
+    }
+
     out << "\n";
 }
 

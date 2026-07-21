@@ -111,6 +111,30 @@ TEST(Resolver, ResolvesHelloWorldExample) {
     EXPECT_FALSE(hello.cyclic);
 }
 
+TEST(Resolver, CompileOptionsAndInstallResolveOntoTheTarget) {
+    logicmake::Resolver resolver("prolog/targets.pl", "examples/submodule_example.lm");
+    const auto demo = findTarget(resolver.resolve(), "demo");
+
+    ASSERT_EQ(demo.compileOptions.size(), 2u);
+    EXPECT_EQ(demo.compileOptions[0].compilerId, "Clang");
+    EXPECT_EQ(demo.compileOptions[0].flags, "-Wall -Wextra -Wpedantic");
+    EXPECT_EQ(demo.compileOptions[1].compilerId, "MSVC");
+    EXPECT_EQ(demo.compileOptions[1].flags, "/W4 /utf-8");
+    EXPECT_EQ(demo.installDest, "bin");
+}
+
+TEST(Resolver, SubmoduleFactsAreResolvedSeparatelyFromTargets) {
+    // submodule/3 is project-level, not target-scoped, so it comes back
+    // from its own query rather than attached to any TargetInfo.
+    logicmake::Resolver resolver("prolog/targets.pl", "examples/submodule_example.lm");
+    const auto submodules = resolver.resolveSubmodules();
+
+    ASSERT_EQ(submodules.size(), 1u);
+    EXPECT_EQ(submodules[0].name, "dearimgui");
+    EXPECT_EQ(submodules[0].url, "https://github.com/ocornut/imgui.git");
+    EXPECT_EQ(submodules[0].path, "Ext/imgui");
+}
+
 TEST(Resolver, DependsOnFindsEverythingThatWouldBreak) {
     // depends_on(fmt, T) — both kai_core (direct private dep) and
     // kai_node (transitive) should come back; this is the "what
