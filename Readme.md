@@ -5,7 +5,7 @@ Prolog-resolved C++ build graphs, transpiled to CMake.
 CppLogicMake replaces CMake's authoring layer — not its generator
 backends. You describe targets and dependencies as Prolog facts.
 [CppProlog](https://github.com/cschladetsch/CppProlog), checked out
-as the `Ext/CppProlog` submodule and built as a library target,
+as the `external/CppProlog` submodule and built as a library target,
 resolves the graph (transitive dependencies, conditional links,
 cycle detection). A driver emits a `CMakeLists.txt`. CMake still
 does what it has always done well: generating Ninja, Xcode, and
@@ -281,7 +281,7 @@ wall clock than one (~320 ms vs ~255 ms) instead of ten times as much.
 
 ```
 CppLogicMake/
-├── Ext/                     submodules — see "Dependencies" below
+├── external/                submodules — see "Dependencies" below
 │   ├── CppProlog/             resolution engine, checked out as a submodule
 │   └── googletest/
 ├── prolog/
@@ -312,17 +312,17 @@ CppLogicMake/
 
 ## Dependencies
 
-Both are git submodules under `Ext/`, pinned to a known commit rather
+Both are git submodules under `external/`, pinned to a known commit rather
 than fetched fresh at configure time:
 
 ```bash
 git submodule update --init --recursive
 ```
 
-(`scripts/build.ps1` does this automatically if `Ext/` looks empty.)
+(`scripts/build.ps1` does this automatically if `external/` looks empty.)
 
 - **[CppProlog](https://github.com/cschladetsch/CppProlog)** — built
-  from the checked-out `Ext/CppProlog` submodule as a
+  from the checked-out `external/CppProlog` submodule as a
   `prolog_core` library target defined in this repo's own
   `CMakeLists.txt`. Deliberately *not* `add_subdirectory`'d
   wholesale: CppProlog's own build pulls in
@@ -428,7 +428,7 @@ cd CppLogicMake
 ./install.ps1
 ```
 
-`install.ps1` builds the driver (initialising the `Ext/` submodules if
+`install.ps1` builds the driver (initialising the `external/` submodules if
 needed), writes launcher shims into `bin/`, and puts that directory on
 your user `PATH` — so a bare `logimake` resolves as an ordinary
 executable in **every** shell (cmd, PowerShell, git-bash), not just
@@ -441,8 +441,8 @@ logimake build C:\path\to\project.lm
 
 Prerequisites: PowerShell 7 (`pwsh`), CMake ≥ 3.25, and a C++23 compiler
 (`clang`/`gcc`) on `PATH`; `ninja` is used if present. Prefer
-`git clone --recursive` over the ZIP download so the `Ext/CppProlog` and
-`Ext/googletest` submodules come with it (a ZIP has neither, and no
+`git clone --recursive` over the ZIP download so the `external/CppProlog` and
+`external/googletest` submodules come with it (a ZIP has neither, and no
 `.git` to fetch them from) — if you already cloned without it, run
 `git submodule update --init --recursive`. Pass `./install.ps1 -SkipBuild`
 to only wire up the command and defer the build to first use. If a
@@ -485,7 +485,7 @@ workers while others still have jobs queued.
 
 There is one piece of genuinely shared state: CppProlog's
 builtin-predicate table
-(`BuiltinPredicates::builtins_`, `Ext/CppProlog/src/prolog/builtin_predicates.cpp`)
+(`BuiltinPredicates::builtins_`, `external/CppProlog/src/prolog/builtin_predicates.cpp`)
 is a plain static `std::unordered_map`, lazily populated on first use
 through an unsynchronized check-then-act (`if (!builtins_.empty())
 return;` then insert). Constructing two `Interpreter`s concurrently

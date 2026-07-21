@@ -166,7 +166,7 @@ Write-Host "  PATH : added $BinDir (user)"
 # Build the driver now so a fresh checkout yields a working `logimake`
 # immediately, and so any missing prerequisite (uninitialised submodule,
 # no compiler/cmake) is reported here with context rather than surfacing
-# on the user's first build. build.ps1 initialises the Ext/ submodules
+# on the user's first build. build.ps1 initialises the external/ submodules
 # itself when they are absent. The command is already installed above, so
 # a build failure is a warning, not fatal — the lazy build retries on
 # first use.
@@ -180,8 +180,8 @@ if (-not $SkipBuild) {
         $buildOk = $true
     } catch {
         Write-Warning "Driver build did not complete: $($_.Exception.Message)"
-        if (-not (Test-Path -LiteralPath (Join-Path $RepoRoot "Ext/CppProlog/src/prolog/interpreter.h"))) {
-            Write-Warning "The Ext/CppProlog submodule looks missing. If you downloaded a ZIP, clone instead:"
+        if (-not (Test-Path -LiteralPath (Join-Path $RepoRoot "external/CppProlog/src/prolog/interpreter.h"))) {
+            Write-Warning "The external/CppProlog submodule looks missing. If you downloaded a ZIP, clone instead:"
             Write-Warning "    git clone --recursive <repo-url>   (or run: git submodule update --init --recursive)"
         } else {
             Write-Warning "Check that cmake and a C++23 compiler (clang/gcc) are installed and on PATH."

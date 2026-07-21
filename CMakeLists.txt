@@ -20,14 +20,14 @@ if(LOGICMAKE_SANITIZE)
     add_link_options(-fsanitize=${LOGICMAKE_SANITIZE})
 endif()
 
-if(NOT EXISTS "${CMAKE_SOURCE_DIR}/Ext/CppProlog/src/prolog/interpreter.h")
+if(NOT EXISTS "${CMAKE_SOURCE_DIR}/external/CppProlog/src/prolog/interpreter.h")
     message(FATAL_ERROR
-        "Ext/CppProlog is empty. Run: git submodule update --init --recursive")
+        "external/CppProlog is empty. Run: git submodule update --init --recursive")
 endif()
 
-# --- CppProlog (Ext/CppProlog), embedded directly ---
+# --- CppProlog (external/CppProlog), embedded directly ---
 #
-# Deliberately NOT add_subdirectory(Ext/CppProlog): its own
+# Deliberately NOT add_subdirectory(external/CppProlog): its own
 # CMakeLists.txt pulls in googletest, google/benchmark, and
 # linenoise-ng via FetchContent to build its own tests, benchmarks,
 # and examples — none of which CppLogicMake needs, and it would
@@ -36,7 +36,7 @@ endif()
 # the submodule's sources. Same principle as the CMake substrate
 # itself: keep the dependency, replace only the parts of its build
 # we don't want.
-set(PROLOG_CORE_DIR ${CMAKE_SOURCE_DIR}/Ext/CppProlog)
+set(PROLOG_CORE_DIR ${CMAKE_SOURCE_DIR}/external/CppProlog)
 
 add_library(prolog_core
     ${PROLOG_CORE_DIR}/src/prolog/term.cpp
@@ -56,10 +56,10 @@ target_include_directories(prolog_core PUBLIC
 )
 target_compile_features(prolog_core PUBLIC cxx_std_23)
 
-# --- googletest (Ext/googletest) ---
+# --- googletest (external/googletest) ---
 set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-add_subdirectory(Ext/googletest)
+add_subdirectory(external/googletest)
 
 # --- driver, split so the resolution/emission logic is testable
 #     without linking the CLI's main() ---

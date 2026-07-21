@@ -47,7 +47,7 @@ std::vector<std::vector<std::string>> PrologEngine::query(
     return rows;
 }
 
-// Ext/CppProlog/src/prolog/builtin_predicates.cpp:
+// external/CppProlog/src/prolog/builtin_predicates.cpp:
 //
 //   void BuiltinPredicates::registerBuiltins() {
 //       if (!builtins_.empty()) return;   // <-- unsynchronized read
@@ -70,7 +70,7 @@ std::vector<std::vector<std::string>> PrologEngine::query(
 // the same eight-thread program is race-free under TSan once this
 // warm-up runs first.
 //
-// This lives in CppLogicMake rather than as a patch to Ext/CppProlog
+// This lives in CppLogicMake rather than as a patch to external/CppProlog
 // because the submodule is pinned as an external dependency, not
 // something this repo edits in place.
 void warmUpPrologRuntime() {

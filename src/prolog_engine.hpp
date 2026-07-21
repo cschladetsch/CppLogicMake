@@ -1,11 +1,11 @@
 // prolog_engine.hpp
 //
-// Thin wrapper around prolog::Interpreter (Ext/CppProlog/src/prolog),
+// Thin wrapper around prolog::Interpreter (external/CppProlog/src/prolog),
 // embedded directly and linked as a library — no subprocess, no
 // stdin/stdout protocol to keep in sync with the interpreter's CLI.
 //
 // Two things about CppProlog's semantics that shaped this wrapper,
-// confirmed against the actual source (Ext/CppProlog/src/prolog):
+// confirmed against the actual source (external/CppProlog/src/prolog):
 //
 //   1. Interpreter::loadFile parses a file as a flat sequence of facts
 //      and rules (Database::loadProgram just calls Parser::parseProgram
@@ -17,7 +17,7 @@
 //
 //   2. Both '...' and "..." literals tokenize to Token::STRING, and
 //      String::toString() wraps the value in escaped double quotes
-//      (see Ext/CppProlog/src/prolog/term.h). A bound variable whose
+//      (see external/CppProlog/src/prolog/term.h). A bound variable whose
 //      value came from either quoting style therefore comes back from
 //      query() with a wrapping pair of quotes still attached — stripped
 //      once, centrally, in Resolver rather than at every call site.
@@ -60,7 +60,7 @@ private:
 // the calling thread. Call this once, single-threaded, before
 // constructing any PrologEngine concurrently from multiple threads —
 // see prolog_engine.cpp for the data race this avoids (confirmed under
-// ThreadSanitizer against Ext/CppProlog directly: two Interpreters
+// ThreadSanitizer against external/CppProlog directly: two Interpreters
 // constructed on different threads for the first time race on
 // BuiltinPredicates::builtins_, an unsynchronized static
 // std::unordered_map populated via an unguarded check-then-act).

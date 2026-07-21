@@ -35,8 +35,8 @@ if ($IsWindows -or $env:OS -eq "Windows_NT") {
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 Push-Location $RepoRoot
 try {
-    if (-not (Test-Path "Ext/CppProlog/src/prolog/interpreter.h") -or
-        -not (Test-Path "Ext/googletest/googletest/CMakeLists.txt")) {
+    if (-not (Test-Path "external/CppProlog/src/prolog/interpreter.h") -or
+        -not (Test-Path "external/googletest/googletest/CMakeLists.txt")) {
         Write-Host "submodules not initialised, running git submodule update..." -ForegroundColor Yellow
         git submodule update --init --recursive
         if ($LASTEXITCODE -ne 0) { throw "submodule init failed" }
